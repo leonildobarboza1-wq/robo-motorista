@@ -1,0 +1,28 @@
+name: Rodar Robo Emprego Motorista
+
+on:
+  schedule:
+    # Programado para rodar todos os dias às 11:00 UTC (08:00 no horário de Brasília)
+    - cron: '0 11 * * *'
+  workflow_dispatch: # Permite que você aperte um botão para rodar na hora que quiser
+
+jobs:
+  executar-robo:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Baixando os arquivos do seu GitHub
+      uses: actions/checkout@v3
+
+    - name: Instalando o Python na Nuvem
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Instalando as bibliotecas necessárias
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests beautifulsoup4 google-genai
+
+    - name: Executando o Robô Principal
+      run: python main.py
