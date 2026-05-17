@@ -52,7 +52,7 @@ def buscar_e_postar_noticia_automatico():
             titulo = item.find('title').text
             link = item.find('link').text
             # O Blogger precisa do marcador [Notícias] no assunto para organizar o menu
-            assunto_noticia = f"[Noticias] {titulo}"
+            assunto_noticia = f"[NOTICIAS] {titulo}"
             
             # Limpa e pega a descrição da notícia
             descricao = item.find('description').text if item.find('description') else "Clique no botão abaixo para ler a matéria completa."
