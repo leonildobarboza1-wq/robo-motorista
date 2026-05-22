@@ -25,4 +25,6 @@ jobs:
         pip install requests beautifulsoup4 google-genai lxml google-api-python-client
 
     - name: Executando o Robô Principal
+      env:
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
       run: python main.py
