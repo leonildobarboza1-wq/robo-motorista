@@ -28,7 +28,7 @@ def enviar_vaga_para_o_blog(titulo, localizacao, conteudo_html, link_original):
             <p><strong>Como se candidatar:</strong></p>
             <p><a href="{link_original}" target="_blank" style="display:inline-block;padding:10px 20px;background-color:#007bff;color:white;text-decoration:none;border-radius:5px;font-weight:bold;">Ver Vaga Original e Enviar Currículo</a></p>
             <br>
-            <small>Fonte: Buscador Automático Emprego para Motorista</small>
+            <small>Emprego para Motorista</small>
         </body>
     </html>
     """
