@@ -1,12 +1,12 @@
 from google import genai
 import os
 
-# CONFIGURAÇÃO: Cole aqui a sua chave que você pegou no AI Studio
-GEMINI_API_KEY = "AIzaSyC4XJw_V_tYuBw76gHQD7hjjwE7UlStj30"
+# CONFIGURAÇÃO: O Python agora pega a chave do "cofre" seguro do GitHub Actions
+GEMINI_API_KEY = os.environ.get("GOOGLE_API_KEY")
 
 def analisar_vaga_com_ia(titulo_vaga, descricao_vaga):
-    if GEMINI_API_KEY == "COLE_AQUI_A_SUA_CHAVE_DO_AI_STUDIO":
-        print("⚠️ ERRO: Você esqueceu de colocar sua chave do Gemini no código!")
+    if not GEMINI_API_KEY:
+        print("⚠️ ERRO: A chave do Gemini não foi encontrada nas variáveis de ambiente!")
         return None
 
     # Inicializa o cliente do Gemini
