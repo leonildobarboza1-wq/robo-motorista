@@ -25,6 +25,4 @@ jobs:
           BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
           BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
           BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
-        run: python main.pyI_KEY: "${{ secrets.GOOGLE_API_KEY }}"
-        GOOGLE_SERVICE_ACCOUNT_JSON: "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}"
-      run: python main.py
+        run: python main.py
