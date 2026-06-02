@@ -1,10 +1,11 @@
 name: Rodar Robo Emprego Motorista
 
+name: Rodar Robo Emprego Motorista
+
 on:
+  workflow_dispatch: # Isso aqui ativa o botão manual no painel!
   schedule:
-    # Programado para rodar todos os dias às 11:00 UTC (08:00 no horário de Brasília)
-    - cron: '0 11 * * *'
-  workflow_dispatch: # Permite que você aperte um botão para rodar na hora que quiser
+    - cron: '0 9,15 * * *' # Mantém o seu horário automático se houver
 
 jobs:
   executar-robo:
