@@ -53,13 +53,16 @@ def obter_ultimos_titulos_blogger(blog_id, access_token):
         return []
 
 def postar_no_blogger(blog_id, access_token, titulo, conteudo):
-    """Envia a requisição POST para publicar no Blogger"""
-    url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts/"
+    """Envia a requisição POST para publicar no Blogger forçando status ativo (isDraft=false)"""
+    # O parâmetro isDraft=false força o post a ficar visível instantaneamente no painel público
+    url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts/?isDraft=false"
+    
     payload = {
         "kind": "blogger#post",
         "title": titulo,
         "content": conteudo
     }
+    
     data = json.dumps(payload).encode('utf-8')
     headers = {
         'Authorization': f'Bearer {access_token}',
@@ -70,7 +73,7 @@ def postar_no_blogger(blog_id, access_token, titulo, conteudo):
     try:
         with urllib.request.urlopen(req) as response:
             res_data = json.loads(response.read().decode('utf-8'))
-            logging.info(f"Post publicado com sucesso! ID: {res_data.get('id')}")
+            logging.info(f"Post publicado com sucesso absoluto! ID: {res_data.get('id')}")
             return True
     except Exception as e:
         logging.error("Erro ao postar na API do Blogger.")
