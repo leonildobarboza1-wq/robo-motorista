@@ -18,12 +18,9 @@ EMAIL_SECRETO_BLOGGER = os.environ.get("EMAIL_SECRETO_BLOGGER")
 GMAIL_REMETENTE = os.environ.get("GMAIL_REMETENTE")
 GMAIL_SENHA_APP = os.environ.get("GMAIL_SENHA_APP")
 
-# Lista expandida para garantir volume diário
+# Lista revisada e atualizada com links estáveis
 FONTES_VAGAS = [
-    {"nome": "Blog do Caminhoneiro - Vagas", "url": "https://blogdocaminhoneiro.com/category/vagas-de-emprego/feed/"},
     {"nome": "Estradão - Estadão", "url": "https://estradao.estadao.com.br/feed/"},
-    {"nome": "Mundo do Caminhão", "url": "https://blog.mundodocaminhao.com.br/feed/"},
-    {"nome": "Frota Cia", "url": "https://www.frotacia.com.br/feed/"},
     {"nome": "Giro do Caminhoneiro", "url": "https://girodocaminhoneiro.com.br/feed/"},
     {"nome": "Chapa Comigo", "url": "https://chapacomigo.com.br/feed/"}
 ]
@@ -94,7 +91,8 @@ def minerar_feed(lista_fontes, titulos_bloqueados):
 
 def gerar_conteudo_ia(titulo, conteudo, link_original, imagem_url, eh_noticia=False):
     client = genai.Client()
-    data_postagem = obtener_data_formatada()
+    # CORRIGIDO: Agora chamando o nome certo da função sem o "e" espanhol
+    data_postagem = obter_data_formatada()
     
     tipo_contexto = "notícia informativa e relevante" if eh_noticia else "vaga de emprego de motorista"
     
