@@ -125,36 +125,37 @@ def main():
             
     # 4. Preparação das Variáveis de Tempo (Fuso Horário de Brasília)
     fuso_br = zoneinfo.ZoneInfo("America/Sao_Paulo")
-    agora = datetime.now(fuso_br).strftime("%d/%m/%Y %H:%M")
+    agora = datetime.now(fuso_br).strftime("%d/%m/%Y às %H:%M")
     
     titulo_final = ""
     conteudo_final = ""
 
-    # 5. Processamento e Tomada de Decisão do Conteúdo
+    # 5. Processamento e Tomada de Decisão do Conteúdo com Injeção de Data e Filtro de Extensão
     if vaga_selecionada:
         logging.info(f"Vaga inédita selecionada para processamento: {vaga_selecionada['titulo']}")
-        dados_ia = processar_vaga_com_gemini(vaga_selecionada, api_key_gemini)
+        # Passando a data atual formatada para dentro da IA
+        dados_ia = processar_vaga_com_gemini(vaga_selecionada, agora)
         
         if dados_ia.get('e_motorista'):
-            titulo_final = f"{dados_ia['titulo_otimizado']} - Vaga de Emprego"
+            titulo_final = f"{dados_ia['titulo_otimizado']}"
             conteudo_final = dados_ia['conteudo_html']
         else:
             logging.warning("A vaga selecionada foi descartada pelo filtro de IA por não ser de motorista.")
-            vaga_selecionada = None # Força a ativação da contingência de notícias
+            vaga_selecionada = None 
 
-    # Se NÃO encontrou vaga inédita OU se a IA rejeitou a vaga selecionada
     if not vaga_selecionada:
         logging.warning("⚠️ Nenhuma vaga de emprego inédita encontrada hoje. Ativando Plano B de Notícias!")
         noticia_bruta = buscar_noticia_caminhoneiro()
         
-        dados_noticia = formatar_noticia_com_gemini(noticia_bruta, api_key_gemini)
+        # Passando a data atual formatada para dentro da IA
+        dados_noticia = formatar_noticia_com_gemini(noticia_bruta, agora)
         titulo_final = dados_noticia['titulo_otimizado']
         conteudo_final = dados_noticia['conteudo_html']
 
-    # Adiciona o carimbo final de automação comum a ambos os tipos de post
+    # Adiciona o rodapé de automação discreto
     conteudo_final += f"""
     <br><hr>
-    <p><small><i>Post automatizado atualizado em: {agora} (Horário de Brasília)</i></small></p>
+    <p><small><i>Post verificado e atualizado via inteligência artificial em {agora}.</i></small></p>
     """
 
     # 6. Publicação Final Garantida
