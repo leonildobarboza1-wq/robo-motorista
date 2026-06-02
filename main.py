@@ -22,7 +22,7 @@ def get_blogger_service():
     )
     return build('blogger', 'v3', credentials=credentials)
 
-def build_final_html(ai_body: str, item: Dict) -> str:
+def build_final_html(ai_body: str, item_link: str) -> str:
     """Monta um HTML simples estruturado para o teste."""
     html_topo = f"""
     <div style="background-color: #f8f9fa; border-left: 4px solid #28a745; padding: 12px 16px; margin-bottom: 20px; font-family: sans-serif;">
@@ -32,7 +32,7 @@ def build_final_html(ai_body: str, item: Dict) -> str:
     html_rodape = f"""
     <hr style="border: 0; border-top: 1px solid #e9ecef; margin: 30px 0;" />
     <div style="text-align: center; margin: 25px 0; font-family: sans-serif;">
-        <a href="{item['link']}" target="_blank" style="background-color: #28a745; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 4px; display: inline-block;">
+        <a href="{item_link}" target="_blank" style="background-color: #28a745; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 4px; display: inline-block;">
             👉 Link de Destino Funcionando
         </a>
     </div>
@@ -65,17 +65,15 @@ def main():
         # Tenta obter o cliente autenticado
         blogger = get_blogger_service()
         
-        # Payload estático simulando uma vaga real
-        vaga_teste = {
-            "title": "Vaga de Teste Forçado - Motorista - " + datetime.datetime.now().strftime("%H:%M"),
-            "link": "https://google.com"
-        }
+        # Dados estáticos para o teste
+        titulo_teste = "Vaga de Teste Forçado - Motorista - " + datetime.datetime.now().strftime("%H:%M")
+        link_teste = "https://google.com"
         
         print("🤖 Estruturando HTML padrão de teste...")
-        html_final = build_final_html("<p>Se você está lendo isso, a API do Blogger está configurada e recebendo dados perfeitamente do GitHub Actions!</p>", vaga_teste)
+        html_final = build_final_html("<p>Se você está lendo isso, a API do Blogger está configurada e recebendo dados perfeitamente do GitHub Actions!</p>", link_teste)
         
         print("📤 Despachando carga útil para a API do Blogger...")
-        send_to_blogger(blogger, vaga_teste['title'], html_final)
+        send_to_blogger(blogger, titulo_teste, html_final)
         
     except Exception as e:
         print(f"💥 O TESTE FALHOU! O erro retornado foi: {e}")
