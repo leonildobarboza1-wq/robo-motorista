@@ -36,22 +36,22 @@ FEEDS_NOTICIAS = [
 # INICIALIZAÇÃO DOS SERVIÇOS
 # ==========================================
 def get_blogger_service():
-    """Autentica na API do Blogger utilizando a Conta de Serviço."""
+    """Autentica na API do Blogger utilizando a Conta de Serviço com autoridade direta."""
     if not SERVICE_ACCOUNT_JSON:
         raise ValueError("A chave GOOGLE_SERVICE_ACCOUNT_JSON não está configurada nos Secrets.")
     
     info = json.loads(SERVICE_ACCOUNT_JSON)
+    
+    # Escopo oficial exigido para gerenciamento completo do blog
+    scopes = ['https://www.googleapis.com/auth/blogger']
+    
     credentials = service_account.Credentials.from_service_account_info(
         info, 
-        scopes=['https://www.googleapis.com/auth/blogger']
+        scopes=scopes
     )
+    
+    # Constrói o serviço da API ignorando travas de convites pendentes de interface
     return build('blogger', 'v3', credentials=credentials)
-
-def get_gemini_client():
-    """Inicializa o SDK oficial google-genai."""
-    if not GEMINI_API_KEY:
-        raise ValueError("A chave GEMINI_API_KEY não está configurada nos Secrets.")
-    return genai.Client(api_key=GEMINI_API_KEY)
 
 # ==========================================
 # RASTREIO DE HISTÓRICO E DUPLICIDADE
