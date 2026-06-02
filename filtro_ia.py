@@ -17,7 +17,6 @@ def chamar_api_gemini_texto_puro(prompt):
         "contents": [{
             "parts": [{"text": prompt}]
         }]
-        # Removido o responseMimeType para dar liberdade criativa total ao modelo
     }
     
     data = json.dumps(payload).encode('utf-8')
@@ -51,11 +50,11 @@ def processar_vaga_com_gemini(vaga, data_postagem):
     """
     try:
         conteudo_html = chamar_api_gemini_texto_puro(prompt)
-        # Limpa possíveis marcações markdown indesejadas que a IA coloque
+        
+        # Correção da Sintaxe: Limpeza segura de blocos markdown
         conteudo_html = conteudo_html.replace("
 ```html", "").replace("```", "").strip()
         
-        # Como removemos o JSON, assumimos que se gerou texto longo, é válido
         return {
             "e_motorista": True, 
             "titulo_otimizado": f"Vaga de Motorista: Oportunidade para Profissional em {vaga['titulo']}", 
@@ -89,10 +88,11 @@ def formatar_noticia_com_gemini(noticia, data_postagem):
     try:
         logging.info("Enviando conteúdo para reescrita longa e livre de amarras...")
         conteudo_html = chamar_api_gemini_texto_puro(prompt)
+        
+        # Correção da Sintaxe: Limpeza segura de blocos markdown
         conteudo_html = conteudo_html.replace("
 ```html", "").replace("```", "").strip()
         
-        # Extrai o título inteligente que a IA gerou de dentro do comentário HTML
         titulo_otimizado = f"Informativo para Motoristas: {noticia['titulo']}"
         if "<!--TITULO:" in conteudo_html:
             try:
