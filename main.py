@@ -1,30 +1,35 @@
 import os
-import json
 import datetime
-from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
-# Coleta direta das credenciais do ambiente do GitHub
-# Modifique a linha existente para incluir o .strip() e remover caracteres extras
+# 1. Coleta direta das credenciais do ambiente do GitHub Secrets
 BLOG_ID = os.environ.get("BLOG_ID", "").strip().replace('"', '').replace("'", "")
-SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+CLIENT_ID = os.environ.get("BLOGGER_CLIENT_ID", "").strip()
+CLIENT_SECRET = os.environ.get("BLOGGER_CLIENT_SECRET", "").strip()
+REFRESH_TOKEN = os.environ.get("BLOGGER_REFRESH_TOKEN", "").strip()
 
 def main():
-    print("🚨 [EXECUÇÃO FORÇADA CRÍTICA] Iniciando tentativa direta de postagem...")
+    print("🚨 [EXECUÇÃO FORÇADA CRÍTICA] Iniciando tentativa direta de postagem via OAuth2...")
     
-    # 1. Validação de Variáveis de Ambiente
+    # Validação de Variáveis de Ambiente
     if not BLOG_ID:
-        raise ValueError("ERRO: A variável 'BLOG_ID' está vazia ou não foi carregada no GitHub Actions.")
-    if not SERVICE_ACCOUNT_JSON:
-        raise ValueError("ERRO: A variável 'GOOGLE_SERVICE_ACCOUNT_JSON' está vazia ou incorreta.")
+        raise ValueError("ERRO: A variável 'BLOG_ID' está vazia no GitHub Actions.")
+    if not CLIENT_ID or not CLIENT_SECRET or not REFRESH_TOKEN:
+        raise ValueError("ERRO: As chaves OAuth2 (CLIENT_ID, SECRET ou REFRESH_TOKEN) não foram carregadas no GitHub.")
 
     print(f"🔎 Identificador do Blog Alvo: {BLOG_ID}")
     
-    # 2. Autenticação Direta (Sem travas de erro)
-    info = json.loads(SERVICE_ACCOUNT_JSON)
-    credentials = service_account.Credentials.from_service_account_info(
-        info, scopes=['https://www.googleapis.com/auth/blogger']
+    # 2. Autenticação Humana Direta usando o Token da Conta 2
+    credentials = Credentials(
+        token=None,  # O Python gera o token temporário na hora usando o Refresh Token
+        refresh_token=REFRESH_TOKEN,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=CLIENT_ID,
+        client_secret=CLIENT_SECRET,
+        scopes=['https://www.googleapis.com/auth/blogger']
     )
+    
     blogger_service = build('blogger', 'v3', credentials=credentials)
     
     # 3. Criação de um Post Simples para Forçar Entrada
@@ -45,7 +50,7 @@ def main():
     
     print("📤 Despachando requisição para os servidores do Google...")
     
-    # Execução nua e crua (Sem try/except). Se falhar, vai quebrar o build e mostrar o motivo real!
+    # Execução nua e crua. Se o token estiver certo, vai funcionar agora!
     request = blogger_service.posts().insert(blogId=BLOG_ID, body=payload)
     response = request.execute()
     
