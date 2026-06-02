@@ -5,7 +5,8 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
 # Coleta direta das credenciais do ambiente do GitHub
-BLOG_ID = os.environ.get("BLOG_ID")
+# Modifique a linha existente para incluir o .strip() e remover caracteres extras
+BLOG_ID = os.environ.get("BLOG_ID", "").strip().replace('"', '').replace("'", "")
 SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
 
 def main():
