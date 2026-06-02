@@ -18,28 +18,28 @@ EMAIL_SECRETO_BLOGGER = os.environ.get("EMAIL_SECRETO_BLOGGER")
 GMAIL_REMETENTE = os.environ.get("GMAIL_REMETENTE")
 GMAIL_SENHA_APP = os.environ.get("GMAIL_SENHA_APP")
 
-# Lista revisada e atualizada com links estáveis
+# 6 Fontes Ativas e Testadas
 FONTES_VAGAS = [
-    {"nome": "Estradão - Estadão", "url": "https://estradao.estadao.com.br/feed/"},
+    {"nome": "Estradão - Estadão Vagas", "url": "https://estradao.estadao.com.br/feed/"},
     {"nome": "Giro do Caminhoneiro", "url": "https://girodocaminhoneiro.com.br/feed/"},
-    {"nome": "Chapa Comigo", "url": "https://chapacomigo.com.br/feed/"}
+    {"nome": "Chapa Comigo Vagas", "url": "https://chapacomigo.com.br/feed/"}
 ]
 
 FONTES_NOTICIAS = [
     {"nome": "NTC e Logistica", "url": "https://www.ntcelogistica.org.br/feed/"},
-    {"nome": "Fetrancesg", "url": "https://fetrancesg.com.br/feed/"},
-    {"nome": "Estradas.com", "url": "https://estradas.com.br/feed/"}
+    {"nome": "Fetrancesg Notícias", "url": "https://fetrancesg.com.br/feed/"},
+    {"nome": "Estradas.com Informativos", "url": "https://estradas.com.br/feed/"}
 ]
 
 def obter_data_formatada():
-    """Gera a data atual em formato brasileiro elegante"""
     meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
     hoje = datetime.now()
     return f"{hoje.day} de {meses[hoje.month - 1]} de {hoje.year}"
 
 def listar_titulos_publicados_recentes():
+    """Coleta apenas os últimos posts do blog para não repetir o que é muito recente"""
     titulos_recentes = set()
-    url_feed = f"{URL_MEU_BLOG.rstrip('/')}/feeds/posts/default"
+    url_feed = f"{URL_MEU_BLOG.rstrip('/')}/feeds/posts/default?max-results=30"
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
         req = urllib.request.Request(url_feed, headers=headers)
@@ -51,15 +51,17 @@ def listar_titulos_publicados_recentes():
                 if title_element is not None and title_element.text:
                     titulos_recentes.add(title_element.text.strip().lower())
     except Exception as e:
-        print(f"⚠️ Histórico inacessível: {e}")
+        print(f"⚠️ Histórico do blog temporariamente inacessível: {e}")
     return titulos_recentes
 
-def minerar_feed(lista_fontes, titulos_bloqueados):
+def minerar_feed_implacavel(lista_fontes, titulos_bloqueados):
+    """Vasculha TODAS as fontes da lista até encontrar uma postagem inédita"""
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     fontes_mistas = list(lista_fontes)
     random.shuffle(fontes_mistas)
     
     for fonte in fontes_mistas:
+        print(f"🔍 Vasculhando a fonte: {fonte['nome']}...")
         try:
             req = urllib.request.Request(fonte['url'], headers=headers)
             with urllib.request.urlopen(req, timeout=12) as response:
@@ -67,15 +69,20 @@ def minerar_feed(lista_fontes, titulos_bloqueados):
             
             items = root.findall('.//item')
             if not items:
+                print(f" Empty: Fonte {fonte['nome']} sem itens no momento.")
                 continue
                 
             random.shuffle(items)
             for item in items:
-                title = item.find('title').text
+                title = item.find('title').text if item.find('title') is not None else ""
                 desc = item.find('description').text if item.find('description') is not None else ""
-                link = item.find('link').text
+                link = item.find('link').text if item.find('link') is not None else ""
                 
-                if not title or title.strip().lower() in titulos_bloqueados:
+                if not title:
+                    continue
+                
+                # Bloqueio anti-repetição ativa
+                if title.strip().lower() in titulos_bloqueados:
                     continue
                 
                 img_url = ""
@@ -83,17 +90,17 @@ def minerar_feed(lista_fontes, titulos_bloqueados):
                 if media_content is not None and 'url' in media_content.attrib:
                     img_url = media_content.attrib['url']
                 
+                print(f"🎯 Conteúdo Inédito Encontrado em '{fonte['nome']}': {title}")
                 return title, desc, link, img_url
         except Exception as e:
-            print(f"❌ Erro na fonte '{fonte['nome']}': {e}")
+            print(f"❌ Falha temporária ao ler {fonte['nome']}: {e}")
             continue
+            
     return None, None, None, None
 
 def gerar_conteudo_ia(titulo, conteudo, link_original, imagem_url, eh_noticia=False):
     client = genai.Client()
-    # CORRIGIDO: Agora chamando o nome certo da função sem o "e" espanhol
     data_postagem = obter_data_formatada()
-    
     tipo_contexto = "notícia informativa e relevante" if eh_noticia else "vaga de emprego de motorista"
     
     prompt = f"""
@@ -161,16 +168,17 @@ def enviar_email_blogger(titulo, conteudo):
         print(f"❌ Falha no envio do e-mail: {e}")
 
 if __name__ == "__main__":
+    print("🤖 Iniciando varredura inteligente do portal...")
     publicados = listar_titulos_publicados_recentes()
     
-    # Tenta Primeiro: Vagas
-    t, d, l, i = minerar_feed(FONTES_VAGAS, publicados)
+    # Executa a busca implacável por vagas
+    t, d, l, i = minerar_feed_implacavel(FONTES_VAGAS, publicados)
     eh_noticia = False
     
-    # Plano B: Se não achar vaga inédita, busca notícia
+    # Se falhar em todas as vagas, executa a busca implacável por notícias
     if not t:
-        print("⚠️ Nenhuma vaga inédita hoje. Ativando Plano B (Notícias do Trecho)...")
-        t, d, l, i = minerar_feed(FONTES_NOTICIAS, publicados)
+        print("⚠️ Nenhuma vaga nova encontrada nos sites parceiros. Ativando Plano B (Notícias)...")
+        t, d, l, i = minerar_feed_implacavel(FONTES_NOTICIAS, publicados)
         eh_noticia = True
         
     if t:
@@ -180,7 +188,7 @@ if __name__ == "__main__":
             c_final = resultado_ia.split("[CORPO_DO_POST]")[1].strip()
             enviar_email_blogger(t_final, c_final)
         except Exception as e:
-            print(f"⚠️ Erro no parser: {e}")
-            enviar_email_blogger("Informativo para Motoristas", resultado_ia)
+            print(f"⚠️ Erro ao fatiar resposta da IA, enviando padrão: {e}")
+            enviar_email_blogger("Informativo Diário - Motorista", resultado_ia)
     else:
-        print("🛑 Nenhuma publicação nova disponível em nenhuma das fontes.")
+        print("🛑 Sistema encerrado: Nenhuma novidade absoluta encontrada em nenhuma das 6 fontes.")
