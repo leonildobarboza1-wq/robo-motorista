@@ -71,7 +71,6 @@ def minerar_feed_forcado(lista_fontes, links_bloqueados):
             items = root.findall('.//item')
             if not items: continue
             
-            # Pega o primeiro item disponível da lista misturada para forçar o envio imediato no teste
             for item in items:
                 title = item.find('title').text if item.find('title') is not None else ""
                 desc = item.find('description').text if item.find('description') is not None else ""
@@ -93,20 +92,19 @@ def gerar_corpo_html_ia(titulo, conteudo, link_original, imagem_url, eh_noticia=
     
     prompt = f"""
     Você é o redator do 'Portal Emprego para Motorista'. 
-    Reescreva os dados abaixo em um artigo fluido, profissional e estruturado para leitura mobile.
-    Use tags HTML como <p>, <h2>, <strong>, <ul>, <li>.
+    Reescreva os dados abaixo em um artigo fluido e profissional.
+    Use APENAS tags simples como <p>, <b> e <br>. Não crie tabelas nem use estilos CSS complexos.
     
     Retorne apenas o texto puro do artigo, sem blocos ```html.
     - Título: {titulo}
     - Conteúdo: {conteudo}
     """
 
-    # Layout de contêiner reforçado para blindar contra bugs visuais do Blogger
-    html_topo = f"""<div style="font-family: 'Poppins', sans-serif; color: #333; line-height: 1.6; max-width: 100%; margin: 0 auto;">
-    <p style="color: #d90429; font-size: 15px; font-weight: bold; margin-bottom: 20px; padding-bottom: 6px; border-bottom: 2px solid #ef233c; display: block;">📅 Publicado no Portal em: {data_postagem}</p>"""
+    # HTML simplificado ao extremo para passar direto pelo filtro anti-spam do Blogger
+    html_topo = f"<p><b>📅 Publicado no Portal em: {data_postagem}</b></p><br>\n"
     
     if imagem_url:
-        html_topo += f'<div style="text-align:center; margin-bottom: 20px;"><img src="{imagem_url}" style="max-width:100%; height:auto; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"></div><br>\n'
+        html_topo += f'<p><img src="{imagem_url}" style="max-width:100%; height:auto;"></p><br>\n'
 
     try:
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
@@ -115,13 +113,13 @@ def gerar_corpo_html_ia(titulo, conteudo, link_original, imagem_url, eh_noticia=
         html_final = html_topo + corpo_ia
         
         if not eh_noticia:
-            html_final += f"""<br><br><div style="text-align: center; margin-top: 25px;"><a href="{link_original}" target="_blank" rel="noopener" style="background-color: #e63946; color: white; padding: 15px 30px; text-decoration: none; font-weight: bold; border-radius: 6px; display: inline-block; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">👉 CLIQUE AQUI PARA SE CANDIDATAR A ESTA VAGA</a></div><br></div>"""
+            html_final += f"""<br><br><p><b>👉 <a href="{link_original}" target="_blank">CLIQUE AQUI PARA SE CANDIDATAR A ESTA VAGA</a></b></p>"""
         else:
-            html_final += f"""<br><br><p style="text-align: center; margin-top: 25px; font-size: 13px; color: #666;"><i>Fonte do artigo original: <a href="{link_original}" target="_blank" rel="noopener" style="color: #0066cc;">Acesse o conteúdo completo aqui</a></i></p></div>"""
+            html_final += f"""<br><br><p><i>Fonte original: <a href="{link_original}" target="_blank">Acesse o conteúdo completo aqui</a></i></p>"""
             
         return html_final
     except Exception as e:
-        return f"{html_topo}<p>Confira os detalhes completos direto na fonte oficial: <a href='{link_original}'>Clique aqui para acessar</a></p></div>"
+        return f"{html_topo}<p>Confira os detalhes completos direto na fonte oficial: <a href='{link_original}'>Clique aqui para acessar</a></p>"
 
 def enviar_email_blogger(titulo, conteudo):
     if not EMAIL_SECRETO_BLOGGER: return
