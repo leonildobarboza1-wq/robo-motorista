@@ -6,10 +6,10 @@ import urllib.request
 logging.basicConfig(level=logging.INFO)
 
 def chamar_api_gemini_texto_puro(prompt):
-    """Faz a requisição ao Gemini esperando texto/HTML livre, sem travas de JSON"""
+    """Faz a requisição direta ao Gemini esperando o texto do artigo em HTML"""
     api_key = os.getenv('GOOGLE_API_KEY')
     if not api_key:
-        raise ValueError("GOOGLE_API_KEY não encontrada no ambiente.")
+        raise ValueError("GOOGLE_API_KEY não encontrada no ambiente do GitHub.")
         
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     
@@ -22,82 +22,79 @@ def chamar_api_gemini_texto_puro(prompt):
     data = json.dumps(payload).encode('utf-8')
     req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'}, method='POST')
     
-    with urllib.request.urlopen(req, timeout=40) as response:
+    with urllib.request.urlopen(req, timeout=45) as response:
         resultado = json.loads(response.read().decode('utf-8'))
         texto_resposta = resultado['candidates'][0]['content']['parts'][0]['text']
         return texto_resposta.strip()
 
 def processar_vaga_com_gemini(vaga, data_postagem):
     prompt = f"""
-    Você é um redator profissional especializado no setor de transportes e logística.
-    Crie um artigo de divulgação de vaga longo, explicativo e atraente.
+    Você é um redator profissional especialista no mercado de transportes rodoviários no Brasil.
+    Crie um artigo detalhado, longo e muito atraente para divulgar uma vaga de emprego.
 
     REGRAS DE CONTEÚDO (ANTI-PLÁGIO):
-    1. O texto final DEVE ter no mínimo 20 linhas de parágrafos bem desenvolvidos.
-    2. Mesmo que a descrição original seja curta, EXPANDA o conteúdo. Fale sobre a importância da região, a relevância do motorista para a economia, os desafios e as boas práticas da profissão.
-    3. NÃO use palavras do texto original para evitar conteúdo duplicado.
+    1. O texto final DEVE ter no mínimo 20 linhas de parágrafos bem desenvolvidos e profundos.
+    2. Fale sobre a importância do motorista para a logística regional, os desafios da rota e boas práticas de segurança.
+    3. NÃO copie a descrição original. Use suas próprias palavras para expandir o conteúdo de forma inédita.
 
     REGRAS DE FORMATAÇÃO:
-    - Escreva a resposta DIRETAMENTE em HTML (use <p>, <strong>, <ul>, <li>).
-    - NÃO use blocos de código com ```html. Comece direto no texto.
-    - Na PRIMEIRA linha do texto, inclua: <p><strong>📅 Publicado em: {data_postagem}</strong></p>
-    - No FINAL do texto, coloque o link: <p>Para se candidatar, acesse o link oficial: <a href='{vaga['link']}' target='_blank'>Clique aqui para ir ao site {vaga['fonte']}</a>.</p>
+    - Escreva a resposta DIRETAMENTE em HTML válido (usando <p>, <strong>, <ul>, <li>).
+    - NÃO envolva o código em blocos de markdown como ```html. Comece direto no texto.
+    - Na PRIMEIRA linha do texto, adicione exatamente isto: <p><strong>📅 Publicado em: {data_postagem}</strong></p>
+    - No FINAL do texto, coloque o link: <p>Para se candidatar e ver todos os detalhes, acesse: <a href='{vaga['link']}' target='_blank'>Clique aqui para ir ao site de recrutamento do {vaga['fonte']}</a>.</p>
 
-    Dados da Vaga Original:
+    Dados Base da Vaga:
     Título: {vaga['titulo']}
-    Descrição: {vaga['descricao']}
+    Descrição original: {vaga['descricao']}
     Fonte: {vaga['fonte']}
     """
     try:
         conteudo_html = chamar_api_gemini_texto_puro(prompt)
-        
-        # Limpeza segura na mesma linha para evitar SyntaxError
         conteudo_html = conteudo_html.replace("```html", "").replace("```", "").strip()
+        
+        # Define o título dinâmico otimizado para a Home do Blog
+        titulo_seo = f"Vaga de Motorista: Oportunidade para Profissional - {vaga['titulo']}"
         
         return {
             "e_motorista": True, 
-            "titulo_otimizado": f"Vaga de Motorista: Oportunidade para Profissional em {vaga['titulo']}", 
+            "titulo_otimizado": titulo_seo, 
             "conteudo_html": conteudo_html
         }
     except Exception as e:
-        logging.error(f"Erro no processamento da vaga: {e}")
+        logging.error(f"Erro no processamento da vaga pelo Gemini: {e}")
         return {"e_motorista": False, "titulo_otimizado": "", "conteudo_html": ""}
 
 def formatar_noticia_com_gemini(noticia, data_postagem):
     prompt = f"""
-    Você é um jornalista focado em estradas e transporte rodoviário de cargas.
-    Sua missão é ler a notícia curta abaixo e escrever um artigo jornalístico completo, profundo e 100% INÉDITO.
+    Você é um experiente jornalista focado nas rodovias e no transporte de cargas no Brasil.
+    Transforme a notícia curta abaixo em um artigo jornalístico completo, profundo e 100% INÉDITO.
 
     REGRAS DE CONTEÚDO (ANTI-PLÁGIO):
-    1. O artigo DEVE ter no mínimo 20 linhas de puro texto descritivo. 
-    2. Se a notícia base for curta, contextualize! Explique o que é o evento (ex: Operação Corpus Christi), o impacto disso nas rodovias, traga dicas de segurança para o motorista evitar multas e como planejar a viagem.
-    3. Mude totalmente as palavras. Crie uma redação do zero baseada no fato.
+    1. O artigo DEVE ter no mínimo 20 linhas de puro texto descritivo e contextualizado.
+    2. Desenvolva o tema! Explique o impacto do assunto na rotina de quem vive no trecho, traga dicas de segurança relacionadas ao fato e como o motorista deve se planejar.
+    3. Crie uma redação totalmente nova do zero, evitando penalizações de conteúdo duplicado no Google.
 
     REGRAS DE FORMATAÇÃO:
-    - Escreva a resposta DIRETAMENTE em HTML (use <p>, <strong>, <ul>, <li>).
+    - Escreva a resposta DIRETAMENTE em HTML válido (usando <p>, <strong>, <ul>, <li>).
     - NÃO use blocos de código com ```html. Comece direto no texto.
-    - A PRIMEIRA linha do texto DEVE ser: <p><strong>📅 Publicado em: {data_postagem}</strong></p>
-    - O título do post DEVE vir na primeira linha do seu texto dentro de uma tag especial de comentário formatada exatamente assim: Notícia Base:
-    Título: {noticia['titulo']}
-    Conteúdo: {noticia['descricao']}
+    - Na PRIMEIRA linha do texto, insira obrigatoriamente: <p><strong>📅 Publicado em: {data_postagem}</strong></p>
+    - No final do texto, referencie a fonte: <p>Acompanhe a matéria de referência completa no portal original: <a href='{noticia['link']}' target='_blank'>{noticia['fonte_original']}</a>.</p>
+
+    Notícia Base:
+    Título original: {noticia['titulo']}
+    Conteúdo extraído: {noticia['descricao']}
     Fonte: {noticia['fonte_original']}
     """
     try:
-        logging.info("Enviando conteúdo para reescrita longa e livre de amarras...")
+        logging.info("Enviando conteúdo para reescrita expandida e profunda...")
         conteudo_html = chamar_api_gemini_texto_puro(prompt)
-        
-        # Limpeza segura na mesma linha para evitar SyntaxError
         conteudo_html = conteudo_html.replace("```html", "").replace("```", "").strip()
         
-        titulo_otimizado = f"Informativo para Motoristas: {noticia['titulo']}"
-        if "")[0].strip()
-                if titulo_extraido:
-                    titulo_otimizado = titulo_extraido
-            except:
-                pass
-                
+        # Monta o título seguindo o padrão exigido pelo seu layout do Blogger
+        titulo_seo = f"Informativo para Motoristas: {noticia['titulo']}"
+        
         return {
-            "titulo_otimizado": titulo_otimizado,
+            "titulo_otimizado": titulo_seo,
             "conteudo_html": conteudo_html
         }
     except Exception as e:
