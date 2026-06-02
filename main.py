@@ -140,7 +140,8 @@ def buscar_vagas_google_news(exclude_urls: Set[str]) -> List[Dict]:
         print(f"⚠️ Erro de conexão com o Google News: {e}")
         return []
         
-    soup = BeautifulSoup(resposta.text, 'xml')
+    # LINHA CORRIGIDA AQUI: Mudamos de 'xml' para 'html.parser'
+    soup = BeautifulSoup(resposta.text, 'html.parser')
     itens = soup.find_all('item')
     collected = []
     
