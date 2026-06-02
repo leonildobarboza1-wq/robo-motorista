@@ -5,7 +5,8 @@ import urllib.request
 
 logging.basicConfig(level=logging.INFO)
 
-def chamar_api_gemini(prompt):
+def chamar_api_gemini_texto_puro(prompt):
+    """Faz a requisição ao Gemini esperando texto/HTML livre, sem travas de JSON"""
     api_key = os.getenv('GOOGLE_API_KEY')
     if not api_key:
         raise ValueError("GOOGLE_API_KEY não encontrada no ambiente.")
@@ -15,10 +16,8 @@ def chamar_api_gemini(prompt):
     payload = {
         "contents": [{
             "parts": [{"text": prompt}]
-        }],
-        "generationConfig": {
-            "responseMimeType": "application/json"
-        }
+        }]
+        # Removido o responseMimeType para dar liberdade criativa total ao modelo
     }
     
     data = json.dumps(payload).encode('utf-8')
@@ -27,61 +26,87 @@ def chamar_api_gemini(prompt):
     with urllib.request.urlopen(req, timeout=40) as response:
         resultado = json.loads(response.read().decode('utf-8'))
         texto_resposta = resultado['candidates'][0]['content']['parts'][0]['text']
-        return json.loads(texto_resposta.strip())
+        return texto_resposta.strip()
 
 def processar_vaga_com_gemini(vaga, data_postagem):
     prompt = f"""
-    Você é um redator e recrutador profissional do setor de transportes no Brasil.
-    Sua missão é criar um artigo de divulgação de vaga de emprego TOTALMENTE INÉDITO, longo e detalhado, para evitar plágio ou conteúdo duplicado.
+    Você é um redator profissional especializado no setor de transportes e logística.
+    Crie um artigo de divulgação de vaga longo, explicativo e atraente.
 
-    REGRAS CRÍTICAS:
-    1. O texto final deve ser extenso, contendo no mínimo 20 linhas de parágrafos explicativos desenvolvidos por você.
-    2. NÃO copie a descrição original. Use suas próprias palavras para explicar a importância do cargo, o cenário do mercado na região da vaga e destrinchar os requisitos.
-    3. Use tags HTML estruturadas: <p> para parágrafos, <strong> para destaques, <ul> e <li> para listas.
+    REGRAS DE CONTEÚDO (ANTI-PLÁGIO):
+    1. O texto final DEVE ter no mínimo 20 linhas de parágrafos bem desenvolvidos.
+    2. Mesmo que a descrição original seja curta, EXPANDA o conteúdo. Fale sobre a importância da região, a relevância do motorista para a economia, os desafios e as boas práticas da profissão.
+    3. NÃO use palavras do texto original para evitar conteúdo duplicado.
+
+    REGRAS DE FORMATAÇÃO:
+    - Escreva a resposta DIRETAMENTE em HTML (use <p>, <strong>, <ul>, <li>).
+    - NÃO use blocos de código com ```html. Comece direto no texto.
+    - Na PRIMEIRA linha do texto, inclua: <p><strong>📅 Publicado em: {data_postagem}</strong></p>
+    - No FINAL do texto, coloque o link: <p>Para se candidatar, acesse o link oficial: <a href='{vaga['link']}' target='_blank'>Clique aqui para ir ao site {vaga['fonte']}</a>.</p>
 
     Dados da Vaga Original:
     Título: {vaga['titulo']}
     Descrição: {vaga['descricao']}
-    Fonte de Origem: {vaga['fonte']}
-
-    Retorne ESTRITAMENTE um JSON com esta estrutura (sem markdown):
-    {{
-        "e_motorista": true,
-        "titulo_otimizado": "Título Otimizado para SEO chamando atenção para a vaga",
-        "conteudo_html": "<p><strong>📅 Publicado em: {data_postagem}</strong></p><p>Escreva aqui uma introdução detalhada sobre a profissão e o mercado de transporte na região...</p><p>Desenvolva mais parágrafos explicando detalhadamente a oportunidade (garantindo o tamanho longo de pelo menos 20 linhas)...</p><strong>📋 Requisitos e Qualificações Detalhadas:</strong><ul><li>Descreva os requisitos aqui</li></ul><strong>🎁 Benefícios Esperados:</strong><ul><li>Descreva os benefícios</li></ul><p>Para se candidatar e ver mais detalhes, acesse o link oficial do recrutamento: <a href='{vaga['link']}' target='_blank'>Clique aqui para ir ao site {vaga['fonte']}</a>.</p>"
-    }}
+    Fonte: {vaga['fonte']}
     """
     try:
-        return chamar_api_gemini(prompt)
+        conteudo_html = chamar_api_gemini_texto_puro(prompt)
+        # Limpa possíveis marcações markdown indesejadas que a IA coloque
+        conteudo_html = conteudo_html.replace("
+```html", "").replace("```", "").strip()
+        
+        # Como removemos o JSON, assumimos que se gerou texto longo, é válido
+        return {
+            "e_motorista": True, 
+            "titulo_otimizado": f"Vaga de Motorista: Oportunidade para Profissional em {vaga['titulo']}", 
+            "conteudo_html": conteudo_html
+        }
     except Exception as e:
-        logging.error(f"Erro no processamento da vaga pelo Gemini: {e}")
+        logging.error(f"Erro no processamento da vaga: {e}")
         return {"e_motorista": False, "titulo_otimizado": "", "conteudo_html": ""}
 
 def formatar_noticia_com_gemini(noticia, data_postagem):
     prompt = f"""
-    Você é um jornalista de estradas especialista em transporte rodoviário de cargas no Brasil.
-    Sua missão é ler a notícia resumida abaixo e escrever um artigo de opinião/jornalístico TOTALMENTE NOVO e expandido, evitando qualquer tipo de plágio.
+    Você é um jornalista focado em estradas e transporte rodoviário de cargas.
+    Sua missão é ler a notícia curta abaixo e escrever um artigo jornalístico completo, profundo e 100% INÉDITO.
 
-    REGRAS CRÍTICAS:
-    1. O artigo deve ser rico, aprofundado e ter no mínimo 20 linhas de puro texto descritivo escrito por você.
-    2. Explique o impacto dessa notícia no dia a dia do caminhoneiro e do motorista profissional. Adicione contexto se necessário.
-    3. O título DEVE começar com 'Informativo para Motoristas:' ou 'Vaga de Motorista:' para manter o padrão visual do blog.
-    4. Use as tags HTML <p>, <strong>, <ul>, <li>.
+    REGRAS DE CONTEÚDO (ANTI-PLÁGIO):
+    1. O artigo DEVE ter no mínimo 20 linhas de puro texto descritivo. 
+    2. Se a notícia base for curta, contextualize! Explique o que é o evento (ex: Operação Corpus Christi), o impacto disso nas rodovias, traga dicas de segurança para o motorista evitar multas e como planejar a viagem.
+    3. Mude totalmente as palavras. Crie uma redação do zero baseada no fato.
 
-    Dados da Notícia Original:
+    REGRAS DE FORMATAÇÃO:
+    - Escreva a resposta DIRETAMENTE em HTML (use <p>, <strong>, <ul>, <li>).
+    - NÃO use blocos de código com ```html. Comece direto no texto.
+    - A PRIMEIRA linha do texto DEVE ser: <p><strong>📅 Publicado em: {data_postagem}</strong></p>
+    - O título do post DEVE vir na primeira linha do seu texto dentro de uma tag especial de comentário formatada exatamente assim: <!--TITULO: Informativo para Motoristas: Seu Título Aqui -->
+
+    Notícia Base:
     Título: {noticia['titulo']}
-    Conteúdo Base: {noticia['descricao']}
+    Conteúdo: {noticia['descricao']}
     Fonte: {noticia['fonte_original']}
-
-    Retorne ESTRITAMENTE um JSON com esta estrutura (sem markdown):
-    {{
-        "titulo_otimizado": "Informativo para Motoristas: Título Impactante para SEO",
-        "conteudo_html": "<p><strong>📅 Publicado em: {data_postagem}</strong></p><p>Escreva um parágrafo de introdução contextualizando o leitor...</p><p>Desenvolva a notícia com suas palavras de forma bem explicada e detalhada ao longo de vários parágrafos (mínimo de 20 linhas no total)...</p><p>Analise o impacto real que isso gera nas estradas brasileiras...</p><p>Você pode ler o texto de referência completo direto no portal de origem <a href='{noticia['link']}' target='_blank'>{noticia['fonte_original']}</a>.</p>"
-    }}
     """
     try:
-        logging.info("Enviando conteúdo para reescrita expandida (Anti-Plágio)...")
-        return chamar_api_gemini(prompt)
+        logging.info("Enviando conteúdo para reescrita longa e livre de amarras...")
+        conteudo_html = chamar_api_gemini_texto_puro(prompt)
+        conteudo_html = conteudo_html.replace("
+```html", "").replace("```", "").strip()
+        
+        # Extrai o título inteligente que a IA gerou de dentro do comentário HTML
+        titulo_otimizado = f"Informativo para Motoristas: {noticia['titulo']}"
+        if "<!--TITULO:" in conteudo_html:
+            try:
+                parte_inicial = conteudo_html.split("<!--TITULO:")[1]
+                titulo_extraido = parte_inicial.split("-->")[0].strip()
+                if titulo_extraido:
+                    titulo_otimizado = titulo_extraido
+            except:
+                pass
+                
+        return {
+            "titulo_otimizado": titulo_otimizado,
+            "conteudo_html": conteudo_html
+        }
     except Exception as e:
         logging.error(f"Erro no processamento da notícia pelo Gemini: {e}")
         return {
