@@ -29,8 +29,9 @@ def processar_vaga_com_gemini(vaga, api_key_ignorada=None):
     """
     
     try:
+        # Atualizado para o modelo estável do novo SDK
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -40,6 +41,38 @@ def processar_vaga_com_gemini(vaga, api_key_ignorada=None):
     except Exception as e:
         logging.error(f"Erro ao processar vaga no Gemini: {e}")
         return {"e_motorista": False, "titulo_otimizado": "", "conteudo_html": ""}
+
+def formatar_noticia_com_gemini(noticia, api_key_ignorada=None):
+    client = obter_cliente()
+    
+    prompt = f"""
+    Você é um jornalista especializado no setor de transportes rodoviários no Brasil.
+    Sua missão é pegar a notícia abaixo e reescrevê-la para o nosso blog de empregos de motoristas.
+    O título OBRIGATORIAMENTE deve começar com a palavra "Informativo para Motoristas:" seguido do fato.
+    Organize o texto usando parágrafos curtos (<p>) e intertítulos com <strong>.
+
+    Notícia Bruta:
+    Título: {noticia['titulo']}
+    Conteúdo: {noticia['descricao']}
+    Fonte original: {noticia['fonte_original']}
+    """
+    
+    try:
+        logging.info("Enviando notícia reserva para o modelo Gemini 2.5...")
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            ),
+        )
+        return json.loads(response.text.strip())
+    except Exception as e:
+        logging.error(f"Erro ao reescrever notícia no Gemini: {e}")
+        return {
+            "titulo_otimizado": f"Informativo para Motoristas: {noticia['titulo']}",
+            "conteudo_html": f"<p>{noticia['descricao']}</p><p>Confira na fonte: <a href='{noticia['link']}'>{noticia['fonte_original']}</a>.</p>"
+        }
 
 def formatar_noticia_com_gemini(noticia, api_key_ignorada=None):
     client = obter_cliente()
