@@ -1,26 +1,28 @@
 name: Rodar Robo Emprego Motorista
 
-name: Rodar Robo Emprego Motorista
-
 on:
-  workflow_dispatch: # Isso aqui ativa o botão manual no painel!
+  workflow_dispatch:
   schedule:
-    - cron: '0 9,15 * * *' # Mantém o seu horário automático se houver
+    - cron: '0 9,15 * * *'
 
 jobs:
-  executar-robo:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Baixando os arquivos do seu GitHub
-      uses: actions/checkout@v4
+      - name: Checkout código
+        uses: actions/checkout@v3
 
-    - name: Instalando o Python na Nuvem
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-    - name: Run python main.py
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install google-api-python-client google-auth-oauthlib requests
+
+      - name: Run python main.py
         env:
           BLOG_ID: ${{ secrets.BLOG_ID }}
           BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
