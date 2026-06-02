@@ -3,8 +3,8 @@ import datetime
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
-# 1. Coleta direta das credenciais do ambiente do GitHub Secrets
-BLOG_ID = os.environ.get("BLOG_ID", "").strip().replace('"', '').replace("'", "")
+# 1. Coleta e limpeza cirúrgica das credenciais do ambiente
+BLOG_ID_RAW = os.environ.get("BLOG_ID", "").strip().replace('"', '').replace("'", "")
 CLIENT_ID = os.environ.get("BLOGGER_CLIENT_ID", "").strip()
 CLIENT_SECRET = os.environ.get("BLOGGER_CLIENT_SECRET", "").strip()
 REFRESH_TOKEN = os.environ.get("BLOGGER_REFRESH_TOKEN", "").strip()
@@ -13,16 +13,18 @@ def main():
     print("🚨 [EXECUÇÃO FORÇADA CRÍTICA] Iniciando tentativa direta de postagem via OAuth2...")
     
     # Validação de Variáveis de Ambiente
-    if not BLOG_ID:
+    if not BLOG_ID_RAW:
         raise ValueError("ERRO: A variável 'BLOG_ID' está vazia no GitHub Actions.")
     if not CLIENT_ID or not CLIENT_SECRET or not REFRESH_TOKEN:
         raise ValueError("ERRO: As chaves OAuth2 (CLIENT_ID, SECRET ou REFRESH_TOKEN) não foram carregadas no GitHub.")
 
-    print(f"🔎 Identificador do Blog Alvo: {BLOG_ID}")
+    # Força a conversão para texto limpo removendo qualquer espaço residual
+    blog_id_limpo = "".join(filter(str.isdigit, BLOG_ID_RAW))
+    print(f"🔎 Identificador do Blog Alvo Convertido: {blog_id_limpo}")
     
     # 2. Autenticação Humana Direta usando o Token da Conta 2
     credentials = Credentials(
-        token=None,  # O Python gera o token temporário na hora usando o Refresh Token
+        token=None,
         refresh_token=REFRESH_TOKEN,
         token_uri="https://oauth2.googleapis.com/token",
         client_id=CLIENT_ID,
@@ -50,8 +52,8 @@ def main():
     
     print("📤 Despachando requisição para os servidores do Google...")
     
-    # Execução nua e crua. Se o token estiver certo, vai funcionar agora!
-    request = blogger_service.posts().insert(blogId=BLOG_ID, body=payload)
+    # Execução enviando o ID 100% limpo antes de rodar
+    request = blogger_service.posts().insert(blogId=blog_id_limpo, body=payload)
     response = request.execute()
     
     print("\n✅====================================================")
