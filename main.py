@@ -14,20 +14,21 @@ from googleapiclient.errors import HttpError
 # ==========================================
 # CONFIGURAÇÕES E AMBIENTE
 # ==========================================
+
 BLOG_ID = os.environ.get("BLOG_ID")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
 
-# Canais de Feeds Profissionais Reais (Fase 1)
+# Canais de Feeds Profissionais Estritos (Fase 1)
 FEEDS_PROFISSIONAIS = [
-    "https://www.bne.com.br/rss/vagas-de-emprego-para-motorista",
-    "https://www.vagas.com.br/vagas-de-motorista.rss",
-    "https://TrabalhaBrasil.com.br/rss/vagas-de-emprego-para-motorista"
+    "https://EXEMPLO-FEED-DE-VAGAS-1.com/rss",
+    "https://EXEMPLO-FEED-DE-VAGAS-2.com/rss"
 ]
 
 # ==========================================
 # INICIALIZAÇÃO DOS SERVIÇOS
 # ==========================================
+
 def get_blogger_service():
     if not SERVICE_ACCOUNT_JSON:
         raise ValueError("A chave GOOGLE_SERVICE_ACCOUNT_JSON não está configurada nos Secrets.")
@@ -45,6 +46,7 @@ def get_gemini_client():
 # ==========================================
 # RASTREIO DE HISTÓRICO AVANÇADO
 # ==========================================
+
 def fetch_published_urls(blogger_service) -> Tuple[Set[str], List[str]]:
     """
     Coleta o histórico duplo do blog: URLs originais (da meta tag) 
@@ -70,7 +72,7 @@ def fetch_published_urls(blogger_service) -> Tuple[Set[str], List[str]]:
                 soup = BeautifulSoup(content, "html.parser")
                 meta_tag = soup.find("meta", attrs={"name": "original_source"})
                 if meta_tag and meta_tag.get("content"):
-                    published_urls.add(meta_tag["content"].strip().lower())
+                    published_urls.add(meta_tag["content"].strip())
                     
     except HttpError as e:
         print(f"⚠️ [HISTÓRICO] Aviso ao ler banco de dados do Blogger: {e}")
@@ -80,6 +82,7 @@ def fetch_published_urls(blogger_service) -> Tuple[Set[str], List[str]]:
 # ==========================================
 # REGRAS DE FILTRAGEM E INTELIGÊNCIA DE TÍTULO
 # ==========================================
+
 def is_duplicate_title(new_title: str, historical_titles: List[str], threshold: float = 0.85) -> bool:
     """
     Utiliza a biblioteca nativa difflib para checar se o título da vaga 
@@ -87,6 +90,7 @@ def is_duplicate_title(new_title: str, historical_titles: List[str], threshold: 
     """
     new_title_clean = new_title.strip().lower()
     for hist_title in historical_titles:
+        # Calcula a taxa de similaridade entre as duas strings (0.0 a 1.0)
         similarity = difflib.SequenceMatcher(None, new_title_clean, hist_title).ratio()
         if similarity >= threshold:
             print(f"   [BLOQUEADO] Título muito similar ({similarity*100:.1f}%): '{new_title}' com '{hist_title}'")
@@ -96,60 +100,22 @@ def is_duplicate_title(new_title: str, historical_titles: List[str], threshold: 
 # ==========================================
 # MINERAÇÃO MULTI-FASE E MINERAÇÃO DE GOOGLE NEWS
 # ==========================================
+
 def parse_feed_list(urls: List[str], historical_urls: Set[str], historical_titles: List[str]) -> List[Dict]:
     """Varre feeds RSS aplicando o filtro inteligente de duplicidade por URL e similaridade de Título."""
     collected = []
     for url in urls:
         print(f"📡 [FASE 1] Minerando feed profissional: {url}")
-        try:
-            feed = feedparser.parse(url)
-            for entry in feed.entries:
-                link = entry.get("link", "").strip()
-                title = entry.get("title", "Sem título")
-                
-                if not link:
-                    continue
-                    
-                if link.lower() in historical_urls:
-                    print(f"   [BLOQUEADO] URL idêntica já publicada: {link}")
-                    continue
-                    
-                if is_duplicate_title(title, historical_titles):
-                    continue
-                    
-                collected.append({
-                    "title": title,
-                    "description": entry.get("summary", entry.get("description", "")),
-                    "link": link,
-                    "origem": "Feed Profissional"
-                })
-        except Exception as e:
-            print(f"⚠️ Erro ao processar o feed {url}: {e}")
-            continue
-    return collected
-
-def buscar_vagas_google_news(termo_busca: str, historical_urls: Set[str], historical_titles: List[str], identificador_fase: str) -> List[Dict]:
-    """Busca dinamicamente termos no Google News RSS transformando em dicionários de vagas estruturados."""
-    termo_encodado = urllib.parse.quote(termo_busca)
-    rss_url = f"https://news.google.com/rss/search?q={termo_encodado}&hl=pt-BR&gl=BR&ceid=BR:pt-419"
-    
-    print(f"🔍 [{identificador_fase}] Buscando no Google News por: '{termo_busca}'")
-    try:
-        feed = feedparser.parse(rss_url)
-        collected = []
-        
+        feed = feedparser.parse(url)
         for entry in feed.entries:
             link = entry.get("link", "").strip()
             title = entry.get("title", "Sem título")
             
-            if " - " in title:
-                title = title.split(" - ")[0].strip()
-                
             if not link:
                 continue
                 
-            if link.lower() in historical_urls:
-                print(f"   [BLOQUEADO] URL do Google News já publicada: {link}")
+            if link in historical_urls:
+                print(f"   [BLOQUEADO] URL idêntica já publicada: {link}")
                 continue
                 
             if is_duplicate_title(title, historical_titles):
@@ -159,16 +125,49 @@ def buscar_vagas_google_news(termo_busca: str, historical_urls: Set[str], histor
                 "title": title,
                 "description": entry.get("summary", entry.get("description", "")),
                 "link": link,
-                "origem": f"Google News ({termo_busca})"
+                "origem": "Feed Profissional"
             })
-        return collected
-    except Exception as e:
-        print(f"⚠️ Erro ao acessar o Google News na {identificador_fase}: {e}")
-        return []
+    return collected
+
+def buscar_vagas_google_news(termo_busca: str, historical_urls: Set[str], historical_titles: List[str], identificador_fase: str) -> List[Dict]:
+    """Busca dinamicamente termos no Google News RSS transformando em dicionários de vagas estruturados."""
+    termo_encodado = urllib.parse.quote(termo_busca)
+    rss_url = f"https://news.google.com/rss/search?q={termo_encodado}&hl=pt-BR&gl=BR&ceid=BR:pt-419"
+    
+    print(f"🔍 [{identificador_fase}] Buscando no Google News por: '{termo_busca}'")
+    feed = feedparser.parse(rss_url)
+    collected = []
+    
+    for entry in feed.entries:
+        link = entry.get("link", "").strip()
+        title = entry.get("title", "Sem título")
+        
+        # O Google News costuma colocar o nome do portal de notícias no fim do título. Limpamos para melhorar a precisão.
+        if " - " in title:
+            title = title.split(" - ")[0].strip()
+            
+        if not link:
+            continue
+            
+        if link in historical_urls:
+            print(f"   [BLOQUEADO] URL do Google News já publicada: {link}")
+            continue
+            
+        if is_duplicate_title(title, historical_titles):
+            continue
+            
+        collected.append({
+            "title": title,
+            "description": entry.get("summary", entry.get("description", "")),
+            "link": link,
+            "origem": f"Google News ({termo_busca})"
+        })
+    return collected
 
 # ==========================================
 # INTELIGÊNCIA ARTIFICIAL (GEMINI)
 # ==========================================
+
 def ask_gemini_to_rewrite(gemini_client, item: Dict) -> str:
     """Solicita ao gemini-2.5-flash o enriquecimento e reconstrução da vaga de motorista."""
     prompt = f"""
@@ -201,7 +200,7 @@ def ask_gemini_to_rewrite(gemini_client, item: Dict) -> str:
     if not texto_gerado:
         raise ValueError("O Gemini retornou uma resposta vazia.")
         
-    return texto_gerado.replace("```html", "").replace("```", "").strip()
+    return texto_gerado
 
 def build_final_html(ai_body: str, item: Dict) -> str:
     """Acopla componentes de UI modernos, data localizada e tags ocultas de rastreamento."""
@@ -236,12 +235,13 @@ def build_final_html(ai_body: str, item: Dict) -> str:
 # ==========================================
 # PUBLICADOR OFICIAL VIA API
 # ==========================================
+
 def send_to_blogger(blogger_service, title: str, html_content: str):
     body = {
         "kind": "blogger#post",
         "title": title,
         "content": html_content,
-        "labels": ["Vagas", "Vaga de Motorista"]
+        "labels": ["Vaga de Motorista", "Empregos"]
     }
     try:
         request = blogger_service.posts().insert(blogId=BLOG_ID, body=body)
@@ -253,6 +253,7 @@ def send_to_blogger(blogger_service, title: str, html_content: str):
 # ==========================================
 # CONTROLADOR PRINCIPAL DA ROTINA
 # ==========================================
+
 def main():
     print("🚀 [START] Iniciando o robô agregador inteligente de motoristas...")
     
@@ -260,30 +261,38 @@ def main():
         print("❌ [ERRO] Variável BLOG_ID ausente no ambiente.")
         return
 
+    # Inicia os módulos de conexão
     blogger = get_blogger_service()
     gemini = get_gemini_client()
     
+    # Executa a coleta do banco duplo de exclusão
     print("📥 Coletando histórico de postagens recentes...")
     historical_urls, historical_titles = fetch_published_urls(blogger)
     print(f"📊 Histórico ativo carregado: {len(historical_urls)} URLs e {len(historical_titles)} títulos mapeados.")
     
     vaga_selecionada = None
     
-    # FASE 1: Canais Profissionais Reais
+    # -------------------------------------------------------------------------
+    # FASE 1: Canais Profissionais Estritos
+    # -------------------------------------------------------------------------
     vagas_fase1 = parse_feed_list(FEEDS_PROFISSIONAIS, historical_urls, historical_titles)
     if vagas_fase1:
         print(f"🔥 [FASE 1] Sucesso! Encontradas {len(vagas_fase1)} vagas limpas. Selecionando a primeira.")
         vaga_selecionada = vagas_fase1[0]
         
+    # -------------------------------------------------------------------------
     # FASE 2: Fallback Estrito Google News (Termo Exato)
+    # -------------------------------------------------------------------------
     if not vaga_selecionada:
-        print("💤 [FASE 1] Zero vagas inéditas nos feeds. Ativando FASE 2...")
+        print("💤 [FASE 1] Zeros vagas inéditas nos feeds. Ativando FASE 2...")
         vagas_fase2 = buscar_vagas_google_news('"vaga de motorista"', historical_urls, historical_titles, "FASE 2")
         if vagas_fase2:
             print(f"🎯 [FASE 2] Sucesso! Capturada vaga em Google News Estrito.")
             vaga_selecionada = vagas_fase2[0]
 
+    # -------------------------------------------------------------------------
     # FASE 3: Fallback de Segurança Máxima (Termos Amplificados de Urgência)
+    # -------------------------------------------------------------------------
     if not vaga_selecionada:
         print("⚠️ [FASE 2] Sem resultados limpos no termo estrito. Ativando FASE 3 (Garantia de Postagem)...")
         termos_fallback = [
@@ -297,13 +306,20 @@ def main():
             if vagas_fase3:
                 print(f"⚡ [FASE 3] Sucesso absoluto! Vaga localizada usando o termo amplo: '{termo}'")
                 vaga_selecionada = vagas_fase3[0]
-                break
+                break # Interrompe ao encontrar a primeira ocorrência inédita válida
 
+    # -------------------------------------------------------------------------
     # ETAPA FINAL: GERAÇÃO E ENTREGA
+    # -------------------------------------------------------------------------
     if vaga_selecionada:
         try:
+            # Processamento de enriquecimento pela IA tolerante
             artigo_html_bruto = ask_gemini_to_rewrite(gemini, vaga_selecionada)
+            
+            # Montagem estrutural final
             post_completo_html = build_final_html(artigo_html_bruto, vaga_selecionada)
+            
+            # Postagem segura
             send_to_blogger(blogger, vaga_selecionada['title'], post_completo_html)
             
         except Exception as err:
