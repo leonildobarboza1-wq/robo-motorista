@@ -1,63 +1,45 @@
 import os
 import json
-import urllib.request
+import logging
+import google.generativeai as genai
 
-def analisar_vaga_com_ia(titulo, descricao):
-    api_key = os.environ.get("GOOGLE_API_KEY", "").strip()
-    
+logging.basicConfig(level=logging.INFO)
+
+def processar_vaga_com_gemini(vaga, api_key):
     if not api_key:
-        print("⚠️ Sem GOOGLE_API_KEY. Usando formatação padrão sem IA.")
-        return {
-            "valida": True,
-            "localizacao": "Brasil",
-            "texto_html": f"<h3>Oportunidade: {titulo}</h3><p>{descricao}</p>"
-        }
+        raise ValueError("GOOGLE_API_KEY não configurada no ambiente.")
         
-    # Endpoint oficial do Gemini 1.5 Flash (rápido e econômico para textos)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-1.5-flash')
     
-    # Prompt estruturado para forçar o Gemini a responder apenas um JSON puro
     prompt = f"""
-    Você é um assistente de recrutamento para um blog de empregos de motoristas.
-    Analise a vaga abaixo:
-    Título: {titulo}
-    Descrição: {descricao}
+    Você é um assistente especialista em recrutamento e seleção de motoristas profissionais no Brasil.
+    Analise os dados abaixo e identifique se a vaga é REALMENTE para motoristas profissionais (Caminhão, Ônibus, Carreta, Entrega, Van, etc.).
+    Se NÃO for uma vaga de motorista, retorne a chave "e_motorista" como false.
+    Se FOR, extraia os dados e formate o corpo em HTML limpo (use apenas tags como <p>, <ul>, <li>, <strong>).
 
-    Regras:
-    1. Se a vaga NÃO for de motorista (ex: entregador de bike, mecânico, ajudante), defina "valida" como false.
-    2. Descubra a cidade/estado da vaga. Se não achar, use "Brasil".
-    3. Crie um texto formatado em HTML profissional, limpo, destacando Requisitos, Benefícios e Atividades em tópicos (<ul> e <li>). Use títulos <h3>. Não use a tag <html> ou <body>, apenas as tags de conteúdo.
+    Dados da vaga:
+    Título original: {vaga['titulo']}
+    Descrição original: {vaga['descricao']}
+    Link original: {vaga['link']}
 
-    Responda ESTRITAMENTE em formato JSON com esta estrutura (sem usar blocos de código markdown como ```json):
-    {{"valida": true ou false, "localizacao": "Cidade - Estado", "texto_html": "texto aqui"}}
+    Sua resposta deve ser estritamente um JSON com a seguinte estrutura, sem blocos de código markdown:
+    {{
+        "e_motorista": true ou false,
+        "titulo_otimizado": "Título claro com Cidade/UF se houver",
+        "conteudo_html": "HTML limpo detalhando Requisitos, Atividades e Benefícios e incluindo o link original para candidatura."
+    }}
     """
-
-    payload = {
-        "contents": [{
-            "parts": [{"text": prompt}]
-        }]
-    }
-    
-    headers = {'Content-Type': 'application/json'}
     
     try:
-        req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers, method='POST')
-        with urllib.request.urlopen(req, timeout=15) as response:
-            resultado = json.loads(response.read().decode('utf-8'))
-            
-        texto_resposta = resultado['candidates'][0]['content']['parts'][0]['text'].strip()
+        # Configuração para forçar resposta em formato JSON
+        response = model.generate_content(
+            prompt,
+            generation_config={"response_mime_type": "application/json"}
+        )
         
-        # Limpa possíveis blocos de marcação que a IA insira por teimosia
-        texto_resposta = texto_resposta.replace("```json", "").replace("```", "").strip()
-        
-        data_json = json.loads(texto_resposta)
-        return data_json
-
+        resultado = json.loads(response.text.strip())
+        return resultado
     except Exception as e:
-        print(f"⚠️ Erro no processamento da IA: {e}")
-        # Retorno de segurança caso a IA falhe ou dê erro de cota
-        return {
-            "valida": True,
-            "localizacao": "Brasil",
-            "texto_html": f"<h3>{titulo}</h3><p>{descricao}</p>"
-        }
+        logging.error(f"Erro ao processar vaga no Gemini: {e}")
+        return {"e_motorista": False, "titulo_otimizado": "", "conteudo_html": ""}
