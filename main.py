@@ -1,101 +1,123 @@
 import os
-import datetime
-import time
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
+import sys
+import logging
+import urllib.request
+import urllib.parse
+import json
+from datetime import datetime
+import zoneinfo
 
-# Importações dos módulos locais
-from scraper import buscar_vagas_motorista
-from filtro_ia import analisar_vaga_com_ia
+# Importações locais
+from scraper import buscar_vagas
+from filtro_ia import processar_vaga_com_gemini
 
-# Coleta de credenciais do GitHub Environment
-BLOG_ID_RAW = os.environ.get("BLOG_ID", "").strip().replace('"', '').replace("'", "")
-CLIENT_ID = os.environ.get("BLOGGER_CLIENT_ID", "").strip()
-CLIENT_SECRET = os.environ.get("BLOGGER_CLIENT_SECRET", "").strip()
-REFRESH_TOKEN = os.environ.get("BLOGGER_REFRESH_TOKEN", "").strip()
+logging.basicConfig(level=logging.INFO)
+
+def obter_access_token(client_id, client_secret, refresh_token):
+    """Gera um Access Token válido a partir do Refresh Token (OAuth2)"""
+    url = "https://oauth2.googleapis.com/token"
+    payload = {
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'refresh_token': refresh_token,
+        'grant_type': 'refresh_token'
+    }
+    
+    data = urllib.parse.urlencode(payload).encode('utf-8')
+    req = urllib.request.Request(url, data=data, method='POST')
+    
+    try:
+        with urllib.request.urlopen(req) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+            return res_data['access_token']
+    except Exception as e:
+        logging.error("Erro crítico ao renovar o Access Token via OAuth2.")
+        if hasattr(e, 'read'):
+            logging.error(f"Detalhes do erro OAuth2: {e.read().decode('utf-8')}")
+        raise e
+
+def postar_no_blogger(blog_id, access_token, titulo, conteudo):
+    """Envia a requisição POST para publicar no Blogger"""
+    url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts/"
+    
+    # Payload exigido pela API v3 do Blogger
+    payload = {
+        "kind": "blogger#post",
+        "title": titulo,
+        "content": conteudo
+    }
+    
+    data = json.dumps(payload).encode('utf-8')
+    
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Content-Type': 'application/json'
+    }
+    
+    req = urllib.request.Request(url, data=data, headers=headers, method='POST')
+    
+    try:
+        with urllib.request.urlopen(req) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+            logging.info(f"Post publicado com sucesso! ID: {res_data.get('id')}")
+            return True
+    except Exception as e:
+        logging.error("Erro ao postar na API do Blogger.")
+        if hasattr(e, 'read'):
+            logging.error(f"Resposta de erro do Blogger: {e.read().decode('utf-8')}")
+        raise e
 
 def main():
-    print("🚀 [PRODUÇÃO] Iniciando ciclo de postagem automatizada via API v3...")
+    # Carregando e validando variáveis de ambiente
+    blog_id = os.getenv('BLOG_ID')
+    api_key_gemini = os.getenv('GOOGLE_API_KEY')
+    client_id = os.getenv('BLOGGER_CLIENT_ID')
+    client_secret = os.getenv('BLOGGER_CLIENT_SECRET')
+    refresh_token = os.getenv('BLOGGER_REFRESH_TOKEN')
     
-    # Validação agressiva de chaves
-    if not CLIENT_ID:
-        raise ValueError("ERRO CRÍTICO: 'BLOGGER_CLIENT_ID' não foi encontrado nos Secrets do GitHub!")
-    if not CLIENT_SECRET:
-        raise ValueError("ERRO CRÍTICO: 'BLOGGER_CLIENT_SECRET' não foi encontrado nos Secrets do GitHub!")
-    if not REFRESH_TOKEN:
-        raise ValueError("ERRO CRÍTICO: 'BLOGGER_REFRESH_TOKEN' não foi encontrado nos Secrets do GitHub!")
-    if not BLOG_ID_RAW:
-        raise ValueError("ERRO CRÍTICO: 'BLOG_ID' não foi encontrado nos Secrets do GitHub!")
-
-    blog_id_limpo = "".join(filter(str.isdigit, BLOG_ID_RAW))
-    print(f"📡 Conectando ao Blog ID: {blog_id_limpo}")
-    
-    # Autenticação OAuth2
-    credentials = Credentials(
-        token=None,
-        refresh_token=REFRESH_TOKEN,
-        token_uri="https://oauth2.googleapis.com/token",
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
-        scopes=['https://www.googleapis.com/auth/blogger']
-    )
-    blogger_service = build('blogger', 'v3', credentials=credentials)
-    
-    # Executa raspagem de dados
-    vagas = buscar_vagas_motorista()
+    if not all([blog_id, api_key_gemini, client_id, client_secret, refresh_token]):
+        logging.error("ERRO CRÍTICO: Chaves ou Secrets faltando no ambiente do GitHub.")
+        sys.exit(1)
+        
+    # 1. Coleta das vagas
+    vagas = buscar_vagas()
     if not vagas:
-        print("ℹ️ Nenhuma vaga nova localizada pelo scraper nesta rodada.")
+        logging.warning("Nenhuma vaga encontrada para processar.")
         return
-
-    vagas_publicadas = 0
-    # Processa até 3 vagas para evitar estouro de limite
-    for vaga in vagas[:3]:
-        print(f"\n⏳ Pausa de segurança anti-bloqueio...")
-        time.sleep(5)
         
-        print(f"🧠 Enviando para análise da IA: {vaga['titulo']}")
-        analise = analisar_vaga_com_ia(vaga['titulo'], vaga['descricao'])
+    # Usaremos a primeira vaga válida capturada para o ciclo atual
+    vaga_alvo = vagas[0]
+    
+    # 2. Filtragem e formatação com Inteligência Artificial
+    logging.info("Enviando vaga para análise do Gemini...")
+    dados_vaga = processar_vaga_com_gemini(vaga_alvo, api_key_gemini)
+    
+    if not dados_vaga.get('e_motorista'):
+        logging.warning("A vaga analisada não passou no filtro de validação para Motoristas.")
+        return
         
-        if analise and analise.get('valida'):
-            print(f"🎯 Vaga Aprovada! Região: {analise['localizacao']}")
-            
-            data_str = datetime.datetime.now().strftime("%d/%m/%Y")
-            hora_str = datetime.datetime.now().strftime("%H:%M")
-            
-            titulo_final = f"Vaga de Motorista em {analise['localizacao']} - {vaga['titulo']} ({data_str})"
-            
-            corpo_html = f"""
-            <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto;">
-                <p style="color: #666; font-size: 13px; font-style: italic;">📅 Oportunidade atualizada em: {data_str} às {hora_str}</p>
-                <hr style="border: 0; border-top: 1px solid #eee; margin-bottom: 20px;">
-                {analise['texto_html']}
-                <br><br>
-                <div style="text-align: center; margin: 30px 0;">
-                    <a href="{vaga['link']}" target="_blank" style="display:inline-block;padding:15px 30px;background-color:#2eb85c;color:white;text-decoration:none;border-radius:5px;font-weight:bold;font-size:16px;">
-                        Ver Vaga Original & Enviar Currículo
-                    </a>
-                </div>
-                <hr style="border: 0; border-top: 1px solid #eee;">
-                <small style="color: #bbb;">Publicado automaticamente por Portal Emprego para Motorista</small>
-            </div>
-            """
-            
-            payload = {
-                "kind": "blogger#post",
-                "title": titulo_final,
-                "content": corpo_html,
-                "labels": ["Vagas", analise['localizacao'], "Automático"]
-            }
-            
-            # Força o envio direto via API v3
-            request = blogger_service.posts().insert(blogId=blog_id_limpo, body=payload)
-            request.execute()
-            vagas_publicadas += 1
-            print(f"✅ Post criado com sucesso no Blogger!")
-        else:
-            print("❌ Vaga descartada pelos filtros da IA.")
-            
-    print(f"\n🚀 Ciclo finalizado! Total de novas postagens: {vagas_publicadas}")
+    # 3. Preparação dos dados dinâmicos de Data/Hora (Fuso do Brasil)
+    fuso_br = zoneinfo.ZoneInfo("America/Sao_Paulo")
+    agora = datetime.now(fuso_br).strftime("%d/%m/%Y %H:%M")
+    
+    titulo_final = f"{dados_vaga['titulo_otimizado']} - Atualizado em {agora}"
+    conteudo_final = f"""
+    {dados_vaga['conteudo_html']}
+    <br><hr>
+    <p><small><i>Post automatizado gerado em: {agora} (Horário de Brasília)</i></small></p>
+    """
+    
+    # 4. Autenticação e Publicação
+    try:
+        logging.info("Gerando token de acesso OAuth2...")
+        access_token = obter_access_token(client_id, client_secret, refresh_token)
+        
+        logging.info("Enviando postagem para o Blogger...")
+        postar_no_blogger(blog_id, access_token, titulo_final, conteudo_final)
+        
+    except Exception as erro_final:
+        logging.error(f"Execução falhou na etapa de publicação: {erro_final}")
+        sys.exit(1) # Força o GitHub Actions a ficar vermelho!
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
