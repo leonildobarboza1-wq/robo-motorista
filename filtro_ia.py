@@ -51,9 +51,8 @@ def processar_vaga_com_gemini(vaga, data_postagem):
     try:
         conteudo_html = chamar_api_gemini_texto_puro(prompt)
         
-        # Correção da Sintaxe: Limpeza segura de blocos markdown
-        conteudo_html = conteudo_html.replace("
-```html", "").replace("```", "").strip()
+        # Limpeza segura na mesma linha para evitar SyntaxError
+        conteudo_html = conteudo_html.replace("```html", "").replace("```", "").strip()
         
         return {
             "e_motorista": True, 
@@ -78,9 +77,7 @@ def formatar_noticia_com_gemini(noticia, data_postagem):
     - Escreva a resposta DIRETAMENTE em HTML (use <p>, <strong>, <ul>, <li>).
     - NÃO use blocos de código com ```html. Comece direto no texto.
     - A PRIMEIRA linha do texto DEVE ser: <p><strong>📅 Publicado em: {data_postagem}</strong></p>
-    - O título do post DEVE vir na primeira linha do seu texto dentro de uma tag especial de comentário formatada exatamente assim: <!--TITULO: Informativo para Motoristas: Seu Título Aqui -->
-
-    Notícia Base:
+    - O título do post DEVE vir na primeira linha do seu texto dentro de uma tag especial de comentário formatada exatamente assim: Notícia Base:
     Título: {noticia['titulo']}
     Conteúdo: {noticia['descricao']}
     Fonte: {noticia['fonte_original']}
@@ -89,15 +86,11 @@ def formatar_noticia_com_gemini(noticia, data_postagem):
         logging.info("Enviando conteúdo para reescrita longa e livre de amarras...")
         conteudo_html = chamar_api_gemini_texto_puro(prompt)
         
-        # Correção da Sintaxe: Limpeza segura de blocos markdown
-        conteudo_html = conteudo_html.replace("
-```html", "").replace("```", "").strip()
+        # Limpeza segura na mesma linha para evitar SyntaxError
+        conteudo_html = conteudo_html.replace("```html", "").replace("```", "").strip()
         
         titulo_otimizado = f"Informativo para Motoristas: {noticia['titulo']}"
-        if "<!--TITULO:" in conteudo_html:
-            try:
-                parte_inicial = conteudo_html.split("<!--TITULO:")[1]
-                titulo_extraido = parte_inicial.split("-->")[0].strip()
+        if "")[0].strip()
                 if titulo_extraido:
                     titulo_otimizado = titulo_extraido
             except:
