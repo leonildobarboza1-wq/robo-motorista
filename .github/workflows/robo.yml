@@ -24,9 +24,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests beautifulsoup4 google-genai google-api-python-client google-auth feedparser
 
-    - name: Executando o Robô Principal
+      - name: Executando o Robô Principal
       env:
         BLOG_ID: ${{ secrets.BLOG_ID }}
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        GEMINI_API_KEY: ${{ secrets.GOOGLE_API_KEY }}  # Mudamos aqui para puxar o seu secret existente!
         GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
       run: python main.py
