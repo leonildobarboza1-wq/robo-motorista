@@ -124,4 +124,50 @@ def buscar_vagas_google_news(exclude_urls: Set[str]) -> List[Dict]:
     print(f"📡 Lendo super-feed (Google News Vagas)...")
     termo = '"vaga de motorista"'
     termo_encodado = urllib.parse.quote(termo)
-    url = f"https://news.google.com/rss/search?q={termo_encodado}&hl=pt-BR&gl=BR&ceid
+    
+    # URL dividida de forma segura para evitar quebras de linha no GitHub
+    url = (
+        f"https://news.google.com/rss/search?"
+        f"q={termo_encodado}&hl=pt-BR&gl=BR&ceid=BR:pt-419"
+    )
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    }
+    
+    try:
+        resposta = requests.get(url, headers=headers, timeout=15)
+        if resposta.status_code != 200:
+            print(f"⚠️ Erro ao acessar o Google News. Status: {resposta.status_code}")
+            return []
+    except Exception as e:
+        print(f"⚠️ Erro de conexão com o Google News: {e}")
+        return []
+        
+    soup = BeautifulSoup(resposta.text, 'xml')
+    itens = soup.find_all('item')
+    collected = []
+    
+    for item in itens:
+        try:
+            link = item.find('link').text.strip() if item.find('link') else ""
+            if not link or link.lower() in exclude_urls:
+                continue
+                
+            titulo_completo = item.find('title').text.strip() if item.find('title') else "Vaga de Motorista"
+            titulo = titulo_completo.rsplit(" - ", 1)[0] if " - " in titulo_completo else titulo_completo
+            
+            descricao = item.find('description').text.strip() if item.find('description') else ""
+            descricao_limpa = BeautifulSoup(descricao, "html.parser").get_text()
+            
+            collected.append({
+                "title": titulo,
+                "description": descricao_limpa,
+                "link": link,
+                "image": None,
+                "tipo": "Vaga"
+            })
+        except Exception:
+            continue
+            
+    return collected
