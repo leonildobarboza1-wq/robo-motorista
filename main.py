@@ -8,8 +8,6 @@ from filtro_ia import processar_vaga_com_gemini, formatar_noticia_com_gemini
 
 logging.basicConfig(level=logging.INFO)
 
-# --- FUNÇÕES DE CONTROLE ---
-
 def obter_token_oauth2():
     client_id = os.getenv('BLOGGER_CLIENT_ID')
     client_secret = os.getenv('BLOGGER_CLIENT_SECRET')
@@ -20,11 +18,7 @@ def obter_token_oauth2():
     with urllib.request.urlopen(req) as response:
         return json.loads(response.read().decode('utf-8'))['access_token']
 
-# A FUNÇÃO CORRIGIDA COM 4 ARGUMENTOS:
 def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato, titulo_candidato):
-    palavras_proibidas = ["teste", "testando", "erro", "debug", "exemplo"]
-    if any(p in titulo_candidato.lower() for p in palavras_proibidas):
-        return True 
     url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?maxResults=10"
     headers = {'Authorization': f'Bearer {access_token}'}
     try:
@@ -47,13 +41,11 @@ def postar_no_blogger(blog_id, access_token, titulo, conteudo):
     with urllib.request.urlopen(req) as response:
         logging.info("Post publicado com sucesso!")
 
-# --- BUSCAS ---
-
 def buscar_vagas_bne():
     try:
         url = "https://www.bne.com.br/vagas-de-emprego-para-motorista"
         with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'}), timeout=10) as response:
-            return {"titulo": "Motorista Profissional", "link": url, "fonte": "BNE", "descricao": "Vaga nacional"}
+            return {"titulo": "Motorista Profissional", "link": url, "fonte": "BNE"}
     except: return None
 
 def buscar_noticia_nacional():
@@ -64,29 +56,21 @@ def buscar_noticia_nacional():
             item = xml.split('<item>')[1].split('</item>')[0]
             titulo = item.split('<title>')[1].split('</title>')[0].replace('<![CDATA[', '').replace(']]>', '').strip()
             link = item.split('<link>')[1].split('</link>')[0].strip()
-            return {"titulo": titulo, "link": link, "fonte_original": "Estradão", "descricao": "Notícia nacional"}
+            return {"titulo": titulo, "link": link, "fonte_original": "Estradão"}
     except: return None
-
-# --- FLUXO PRINCIPAL ---
 
 if __name__ == "__main__":
     blog_id = os.getenv('BLOG_ID')
     access_token = obter_token_oauth2()
-    agora = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y às %H:%M")
+    agora = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y")
     
-    # Execução
     vaga = buscar_vagas_bne()
-    logging.info(f"Busca de Vaga: {vaga}")
-    
-    # Chamada corrigida passando os 4 argumentos exigidos
     if vaga and not verificar_se_ja_foi_publicado(blog_id, access_token, vaga['link'], vaga['titulo']):
         dados = processar_vaga_com_gemini(vaga, agora)
         if dados and dados.get('titulo_otimizado'):
             postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'])
-    
     else:
         noticia = buscar_noticia_nacional()
-        logging.info(f"Busca de Notícia: {noticia}")
         if noticia and not verificar_se_ja_foi_publicado(blog_id, access_token, noticia['link'], noticia['titulo']):
             dados = formatar_noticia_com_gemini(noticia, agora)
             if dados and dados.get('titulo_otimizado'):
