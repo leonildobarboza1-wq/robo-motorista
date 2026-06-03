@@ -34,28 +34,28 @@ def processar_vaga_com_gemini(vaga, data_postagem):
     img_vaga = "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop"
     
     prompt = f"""
-    Você é um redator profissional sênior focado no setor de transportes roroviários no Brasil.
-    Sua tarefa é extrair e expandir as informações de uma vaga de emprego para motorista.
+    Você é un redator profissional sênior focado no mercado de transportes rodoviários.
+    Sua tarefa é expandir uma vaga de emprego para motoristas profissionais.
 
-    REGRAS CRÍTICAS DE CONTEÚDO (ANTI-PLÁGIO E EXTENSÃO):
-    1. O campo "conteudo_html" DEVE ser longo e detalhado, contendo no mínimo 20 linhas completas de texto.
-    2. Desenvolva parágrafos longos explicando o mercado na região, a importância da responsabilidade do motorista de caminhão e dicas profissionais. Não copie a descrição original.
-    3. Monte a estrutura obrigatoriamente usando tags HTML: <p>, <strong>, <ul>, <li>.
+    REGRA CRÍTICA DE TÍTULO (ANTI-REPETIÇÃO):
+    - Crie um título dinâmico, chamativo e profissional focado na oportunidade.
+    - PROIBIDO começar o título com frases repetitivas como "Vaga de Motorista:", "Oportunidade:", "Contrata-se:" ou "Emprego:".
+    - Varie a estrutura! Exemplos bons: "Transportadora abre processo seletivo para profissionais de Categoria E", "Nova oportunidade para Motorista Carreteiro em rotas nacionais", "Procura-se condutor de caminhão pesado com experiência".
 
-    REGRAS DE MONTAGEM DO HTML:
-    - Inicie com: <p><strong>📅 Publicado em: {data_postagem}</strong></p>
-    - Logo abaixo insira a imagem: <p align="center"><img src="{img_vaga}" alt="Vaga Motorista" style="max-width:100%; height:auto; margin:15px 0; border-radius:5px;"></p>
-    - Desenvolva o texto longo (mínimo 20 linhas).
-    - No encerramento insira o link exatamente assim: <p><strong>📋 Como se candidatar:</strong> Para enviar seu currículo e verificar todos os detalhes, acesse o link de recrutamento oficial: <a href='{vaga['link']}' target='_blank'>Clique aqui para ir ao site {vaga['fonte']}</a>.</p>
+    REGRAS DE CONTEÚDO E HTML:
+    1. O campo "conteudo_html" deve ser rico, conter no mínimo 20 linhas e usar tags HTML (<p>, <strong>, <ul>, <li>).
+    2. Comece com: <p><strong>📅 Publicado em: {data_postagem}</strong></p>
+    3. Adicione a imagem: <p align="center"><img src="{img_vaga}" alt="Oportunidade" style="max-width:100%; height:auto; margin:15px 0; border-radius:5px;"></p>
+    4. Encerre com o link: <p><strong>📋 Como se candidatar:</strong> Envie seu currículo diretamente através do canal de captação oficial da empresa: <a href='{vaga['link']}' target='_blank'>Clique aqui para acessar o site {vaga['fonte']}</a>.</p>
 
     Dados da Vaga:
-    Título: {vaga['titulo']}
-    Descrição: {vaga['descricao']}
+    Título Original: {vaga['titulo']}
+    Descrição Original: {vaga['descricao']}
 
-    Retorne ESTRITAMENTE um objeto JSON válido com duas chaves textuais:
+    Retorne ESTRITAMENTE este JSON:
     {{
-        "titulo_otimizado": "Vaga de Motorista: Oportunidade para Profissional - [Título Otimizado aqui]",
-        "conteudo_html": "[Insira aqui todo o HTML montado conforme as instruções acima, garantindo mais de 20 linhas de leitura]"
+        "titulo_otimizado": "[Seu título exclusivo, variado e magnético aqui]",
+        "conteudo_html": "[Seu HTML completo contendo mais de 20 linhas de texto e o link no final]"
     }}
     """
     try:
@@ -66,54 +66,53 @@ def processar_vaga_com_gemini(vaga, data_postagem):
             "conteudo_html": dados["conteudo_html"]
         }
     except Exception as e:
-        logging.error(f"Erro ao processar vaga estruturada: {e}")
+        logging.error(f"Erro ao processar vaga: {e}")
         return {"e_motorista": False, "titulo_otimizado": "", "conteudo_html": ""}
 
 def formatar_noticia_com_gemini(noticia, data_postagem):
     img_noticia = noticia.get('url_imagem', 'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?w=800&auto=format&fit=crop')
     
     prompt = f"""
-    Você é um jornalista focado em logística pesada e estradas brasileiras.
-    Sua missão é criar uma matéria jornalística aprofundada, 100% INÉDITA e rica em conteúdo com base em um fato rápido.
+    Você é um experiente jornalista especializado em estradas, frotas pesadas e logística brasileira.
+    Transforme a notícia base em uma matéria aprofundada, fluida e 100% inédita.
 
-    REGRAS CRÍTICAS DE CONTEÚDO (ANTI-PLÁGIO E EXTENSÃO):
-    1. O texto dentro de "conteudo_html" DEVE ter no mínimo 20 linhas de extensão estruturada.
-    2. Crie uma introdução rica, explique o contexto do evento nas rodovias, traga recomendações de segurança da PRF para caminhoneiros e faça uma análise do impacto no frete ou na viagem. Não replique frases da fonte.
-    3. Formate rigorosamente usando tags HTML: <p>, <strong>, <ul>, <li>.
+    REGRA CRÍTICA DE TÍTULO (ANTI-REPETIÇÃO):
+    - Crie uma manchete jornalística forte, atraente e única sobre o acontecimento.
+    - PROIBIDO começar o título com expressões repetitivas como "Informativo para Motoristas:", "Notícia:", "Atenção Caminhoneiros:" ou "Aviso:".
+    - Varie o começo! Exemplos: "Rodovias federais terão fiscalização intensa a partir desta semana", "Mercedes-Benz avança nos testes de novos caminhões elétricos", "Restrições de tráfego pesado mudam a rotina nas estradas".
 
-    REGRAS DE MONTAGEM DO HTML:
-    - Inicie com: <p><strong>📅 Publicado em: {data_postagem}</strong></p>
-    - Logo abaixo insira a imagem centralizada: <p align="center"><img src="{img_noticia}" alt="Notícia Transporte" style="max-width:100%; height:auto; margin:15px 0; border-radius:5px;"></p>
-    - Insira o texto expandido jornalístico (mínimo de 20 linhas de leitura).
-    - No final, insira o link da fonte obrigatoriamente assim: <p>Compilado e adaptado a partir da matéria original disponível no portal de notícias: <a href='{noticia['link']}' target='_blank'>{noticia['fonte_original']}</a>.</p>
+    REGRAS DE CONTEÚDO E HTML:
+    1. O campo "conteudo_html" deve ser jornalístico, contextualizado, contendo no mínimo 20 linhas e estruturado em HTML (<p>, <strong>, <ul>, <li>).
+    2. Comece com: <p><strong>📅 Publicado em: {data_postagem}</strong></p>
+    3. Adicione a imagem: <p align="center"><img src="{img_noticia}" alt="Matéria Rodovias" style="max-width:100%; height:auto; margin:15px 0; border-radius:5px;"></p>
+    4. Encerre referenciando a fonte: <p>Texto desenvolvido com informações apuradas originalmente pelo veículo parceiro de imprensa: <a href='{noticia['link']}' target='_blank'>{noticia['fonte_original']}</a>.</p>
 
-    Dados do Fato Original:
-    Título: {noticia['titulo']}
-    Conteúdo base: {noticia['descricao']}
+    Dados do Fato:
+    Título Base: {noticia['titulo']}
+    Conteúdo Extraído: {noticia['descricao']}
 
-    Retorne ESTRITAMENTE um objeto JSON válido com duas chaves textuais:
+    Retorne ESTRITAMENTE este JSON:
     {{
-        "titulo_otimizado": "Informativo para Motoristas: [Título Otimizado Impactante Aqui]",
-        "conteudo_html": "[Insira aqui todo o HTML gerado conforme as regras acima, contendo obrigatoriamente o texto longo de 20 linhas e o link da fonte no final]"
+        "titulo_otimizado": "[Sua manchete jornalística inédita, chamativa e variada aqui]",
+        "conteudo_html": "[Seu artigo longo com mais de 20 linhas em HTML e o link da fonte no final]"
     }}
     """
     try:
-        logging.info("Enviando notícia para processamento estruturado JSON...")
+        logging.info("Enviando conteúdo para geração de título variado e matéria longa...")
         dados = chamar_api_gemini_com_json(prompt)
         return {
             "titulo_otimizado": dados["titulo_otimizado"],
             "conteudo_html": dados["conteudo_html"]
         }
     except Exception as e:
-        logging.error(f"Erro ao processar notícia estruturada: {e}")
-        # Retorno seguro completo em caso de falha da IA
+        logging.error(f"Erro ao processar notícia: {e}")
         html_emergencia = f"""
         <p><strong>📅 Publicado em: {data_postagem}</strong></p>
         <p align="center"><img src="{img_noticia}" style="max-width:100%; border-radius:5px;"></p>
         <p>{noticia['descricao']}</p>
-        <p>Acompanhe a matéria de referência completa no portal original: <a href='{noticia['link']}' target='_blank'>{noticia['fonte_original']}</a>.</p>
+        <p>Acompanhe a cobertura completa direto na fonte: <a href='{noticia['link']}' target='_blank'>{noticia['fonte_original']}</a>.</p>
         """
         return {
-            "titulo_otimizado": f"Informativo para Motoristas: {noticia['titulo']}",
+            "titulo_otimizado": noticia['titulo'],
             "conteudo_html": html_emergencia
         }
