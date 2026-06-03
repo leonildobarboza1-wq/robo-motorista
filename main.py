@@ -8,7 +8,7 @@ from filtro_ia import processar_vaga_com_gemini, formatar_noticia_com_gemini
 
 logging.basicConfig(level=logging.INFO)
 
-# --- FUNÇÕES ---
+# --- FUNÇÕES DE CONTROLE ---
 
 def obter_token_oauth2():
     client_id = os.getenv('BLOGGER_CLIENT_ID')
@@ -20,21 +20,21 @@ def obter_token_oauth2():
     with urllib.request.urlopen(req) as response:
         return json.loads(response.read().decode('utf-8'))['access_token']
 
-def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato):
+# A FUNÇÃO CORRIGIDA COM 4 ARGUMENTOS:
+def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato, titulo_candidato):
+    palavras_proibidas = ["teste", "testando", "erro", "debug", "exemplo"]
+    if any(p in titulo_candidato.lower() for p in palavras_proibidas):
+        return True 
     url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?maxResults=10"
     headers = {'Authorization': f'Bearer {access_token}'}
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=headers)) as response:
             data = json.loads(response.read().decode('utf-8'))
             for post in data.get('items', []):
-                # Procura no título ou no link original que está no corpo
                 if link_candidato in post.get('content', ''):
-                    logging.info(f"Bloqueado: Link já publicado - {link_candidato}")
                     return True
             return False
-    except Exception as e:
-        logging.error(f"Erro na verificação: {e}")
-        return False
+    except: return False
 
 def postar_no_blogger(blog_id, access_token, titulo, conteudo):
     if len(conteudo) < 300:
@@ -46,6 +46,8 @@ def postar_no_blogger(blog_id, access_token, titulo, conteudo):
                                  headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}, method='POST')
     with urllib.request.urlopen(req) as response:
         logging.info("Post publicado com sucesso!")
+
+# --- BUSCAS ---
 
 def buscar_vagas_bne():
     try:
@@ -72,15 +74,16 @@ if __name__ == "__main__":
     access_token = obter_token_oauth2()
     agora = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y às %H:%M")
     
-    # 1. Tentar Vaga
+    # Execução
     vaga = buscar_vagas_bne()
     logging.info(f"Busca de Vaga: {vaga}")
+    
+    # Chamada corrigida passando os 4 argumentos exigidos
     if vaga and not verificar_se_ja_foi_publicado(blog_id, access_token, vaga['link'], vaga['titulo']):
         dados = processar_vaga_com_gemini(vaga, agora)
         if dados and dados.get('titulo_otimizado'):
             postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'])
     
-    # 2. Tentar Notícia
     else:
         noticia = buscar_noticia_nacional()
         logging.info(f"Busca de Notícia: {noticia}")
