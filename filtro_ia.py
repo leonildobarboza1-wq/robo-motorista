@@ -5,10 +5,13 @@ import urllib.request
 
 def chamar_api_gemini_com_json(prompt):
     api_key = os.getenv('GOOGLE_API_KEY')
+    if not api_key:
+        logging.error("A CHAVE DE API (GOOGLE_API_KEY) NÃO FOI ENCONTRADA!")
+        return None
+        
+    # URL corrigida (v1beta é padrão para modelos flash)
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}], 
-        "generationConfig": {"responseMimeType": "application/json", "temperature": 0.7}
+    # ... resto da função
     }
     data = json.dumps(payload).encode('utf-8')
     req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'}, method='POST')
