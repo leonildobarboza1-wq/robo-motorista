@@ -19,14 +19,21 @@ def chamar_api_gemini_com_json(prompt):
 
 def processar_vaga_com_gemini(vaga, data_postagem):
     prompt = f"""
-    Você é um redator profissional. Escreva uma matéria de 20 linhas sobre esta vaga: {vaga['titulo']}.
-    Retorne ESTRITAMENTE um JSON com:
-    - "titulo_otimizado": Título profissional.
-    - "conteudo_html": Um HTML robusto que comece com uma tag de parágrafo. Exemplo: 
-      "<p><strong>Data: {data_postagem}</strong></p><p>Oportunidade para motorista profissional...</p>..."
-      Não use tags de imagem. Garanta que o texto seja longo e informativo.
+    Responda apenas com um JSON estrito, sem textos explicativos.
+    {{
+      "titulo_otimizado": "Título da vaga aqui",
+      "conteudo_html": "<p>Conteúdo detalhado aqui...</p>"
+    }}
+    Vaga: {vaga['titulo']}
     """
-    # (Resto da função de chamada da API)
+    try:
+        dados = chamar_api_gemini_com_json(prompt)
+        # Trava: Se o campo vier vazio, força um padrão
+        if not dados.get("titulo_otimizado"): dados["titulo_otimizado"] = vaga['titulo']
+        if not dados.get("conteudo_html"): dados["conteudo_html"] = "<p>Sem descrição.</p>"
+        return dados
+    except:
+        return {"titulo_otimizado": vaga['titulo'], "conteudo_html": "<p>Conteúdo temporariamente indisponível.</p>"}
 
 def formatar_noticia_com_gemini(noticia, data_postagem):
     prompt = f"""
