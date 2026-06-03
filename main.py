@@ -1,94 +1,171 @@
 import os
-import json
+import sys
 import logging
 import urllib.request
-import zoneinfo
+import urllib.parse
+import json
 from datetime import datetime
+import zoneinfo
+
+# Importações dos novos módulos modulares
+from scrapers_vagas import buscar_indeed, buscar_simplyhired, buscar_jooble, buscar_trabalhabrasil
+from scrapers_noticias import buscar_noticia_caminhoneiro
 from filtro_ia import processar_vaga_com_gemini, formatar_noticia_com_gemini
 
 logging.basicConfig(level=logging.INFO)
 
-# --- FUNÇÕES DE CONTROLE ---
+def obter_access_token(client_id, client_secret, refresh_token):
+    """Gera um Access Token válido a partir do Refresh Token (OAuth2)"""
+    url = "https://oauth2.googleapis.com/token"
+    payload = {
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'refresh_token': refresh_token,
+        'grant_type': 'refresh_token'
+    }
+    data = urllib.parse.urlencode(payload).encode('utf-8')
+    req = urllib.request.Request(url, data=data, method='POST')
+    
+    try:
+        with urllib.request.urlopen(req) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+            return res_data['access_token']
+    except Exception as e:
+        logging.error("Erro crítico ao renovar o Access Token via OAuth2.")
+        if hasattr(e, 'read'):
+            logging.error(f"Detalhes: {e.read().decode('utf-8')}")
+        raise e
 
-def obter_token_oauth2():
+def obter_ultimos_titulos_blogger(blog_id, access_token):
+    """Busca os títulos das últimas postagens do blog para evitar duplicidade"""
+    url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?maxResults=15&fetchBodies=false"
+    headers = {'Authorization': f'Bearer {access_token}'}
+    req = urllib.request.Request(url, headers=headers, method='GET')
+    
+    try:
+        with urllib.request.urlopen(req) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+            items = res_data.get('items', [])
+            # Armazena apenas o começo do título original, ignorando as estampas de tempo
+            return [item['title'].split(" - ")[0].strip() for item in items]
+    except Exception as e:
+        logging.warning(f"Não foi possível buscar posts antigos do Blogger: {e}")
+        return []
+
+def postar_no_blogger(blog_id, access_token, titulo, conteudo):
+    """Envia a requisição POST para publicar no Blogger forçando status ativo (isDraft=false)"""
+    # O parâmetro isDraft=false força o post a ficar visível instantaneamente no painel público
+    url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts/?isDraft=false"
+    
+    payload = {
+        "kind": "blogger#post",
+        "title": titulo,
+        "content": conteudo
+    }
+    
+    data = json.dumps(payload).encode('utf-8')
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Content-Type': 'application/json'
+    }
+    req = urllib.request.Request(url, data=data, headers=headers, method='POST')
+    
+    try:
+        with urllib.request.urlopen(req) as response:
+            res_data = json.loads(response.read().decode('utf-8'))
+            logging.info(f"Post publicado com sucesso absoluto! ID: {res_data.get('id')}")
+            return True
+    except Exception as e:
+        logging.error("Erro ao postar na API do Blogger.")
+        if hasattr(e, 'read'):
+            logging.error(f"Resposta do Blogger: {e.read().decode('utf-8')}")
+        raise e
+
+def main():
+    # 1. Validação de Ambiente
+    blog_id = os.getenv('BLOG_ID')
+    api_key_gemini = os.getenv('GOOGLE_API_KEY')
     client_id = os.getenv('BLOGGER_CLIENT_ID')
     client_secret = os.getenv('BLOGGER_CLIENT_SECRET')
     refresh_token = os.getenv('BLOGGER_REFRESH_TOKEN')
-    url = "https://oauth2.googleapis.com/token"
-    payload = f"client_id={client_id}&client_secret={client_secret}&refresh_token={refresh_token}&grant_type=refresh_token"
-    req = urllib.request.Request(url, data=payload.encode('utf-8'), headers={'Content-Type': 'application/x-www-form-urlencoded'}, method='POST')
-    with urllib.request.urlopen(req) as response:
-        return json.loads(response.read().decode('utf-8'))['access_token']
-
-def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato, titulo_candidato):
-    palavras_proibidas = ["teste", "testando", "erro", "debug", "exemplo"]
-    if any(p in titulo_candidato.lower() for p in palavras_proibidas):
-        return True 
-    url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?maxResults=10"
-    headers = {'Authorization': f'Bearer {access_token}'}
-    try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers=headers)) as response:
-            data = json.loads(response.read().decode('utf-8'))
-            for post in data.get('items', []):
-                if link_candidato in post.get('content', ''):
-                    return True
-            return False
-    except: return False
-
-def postar_no_blogger(blog_id, access_token, titulo, conteudo):
-    # Trava de segurança contra posts vazios
-    if len(conteudo) < 300 or "temporariamente indisponível" in conteudo:
-        logging.error(f"Postagem abortada: conteúdo inválido.")
-        return
     
-    url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts/?isDraft=false"
-    payload = {"kind": "blogger#post", "title": titulo, "content": conteudo}
-    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), 
-                                 headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}, method='POST')
-    with urllib.request.urlopen(req) as response:
-        logging.info("Post publicado com sucesso!")
-
-# --- BUSCAS ---
-
-def buscar_vagas_bne():
-    try:
-        url = "https://www.bne.com.br/vagas-de-emprego-para-motorista"
-        with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'}), timeout=10) as response:
-            return {"titulo": "Motorista Profissional", "link": url, "fonte": "BNE", "descricao": "Vaga nacional"}
-    except: return None
-
-def buscar_noticia_nacional():
-    try:
-        url_feed = "https://estradao.estadao.com.br/feed/"
-        with urllib.request.urlopen(urllib.request.Request(url_feed, headers={'User-Agent': 'Mozilla/5.0'}), timeout=10) as response:
-            xml = response.read().decode('utf-8')
-            item = xml.split('<item>')[1].split('</item>')[0]
-            titulo = item.split('<title>')[1].split('</title>')[0].replace('<![CDATA[', '').replace(']]>', '').strip()
-            link = item.split('<link>')[1].split('</link>')[0].strip()
-            return {"titulo": titulo, "link": link, "fonte_original": "Estradão", "descricao": "Notícia nacional"}
-    except: return None
-
-# --- FLUXO PRINCIPAL ---
-
-if __name__ == "__main__":
-    blog_id = os.getenv('BLOG_ID')
-    try:
-        access_token = obter_token_oauth2()
-    except Exception as e:
-        logging.error(f"Erro ao obter token: {e}")
-        exit(1)
+    if not all([blog_id, api_key_gemini, client_id, client_secret, refresh_token]):
+        logging.error("ERRO CRÍTICO: Chaves ou Secrets faltando no ambiente do GitHub.")
+        sys.exit(1)
         
-    agora = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y às %H:%M")
+    # 2. Conectar ao Blogger e Puxar Histórico Anti-Duplicação
+    try:
+        logging.info("Iniciando autenticação OAuth2...")
+        access_token = obter_access_token(client_id, client_secret, refresh_token)
+        titulos_publicados = obter_ultimos_titulos_blogger(blog_id, access_token)
+        logging.info(f"Títulos recentes mapeados no blog: {len(titulos_publicados)}")
+    except Exception as e:
+        sys.exit(1)
+
+    # 3. Executar o Carrossel de Vagas (Ordem de Prioridade)
+    lista_fontes_vagas = [buscar_indeed, buscar_simplyhired, buscar_jooble, buscar_trabalhabrasil]
+    vaga_selecionada = None
     
-    # Execução do fluxo
-    vaga = buscar_vagas_bne()
-    if vaga and not verificar_se_ja_foi_publicado(blog_id, access_token, vaga['link'], vaga['titulo']):
-        dados = processar_vaga_com_gemini(vaga, agora)
-        if dados and dados.get('titulo_otimizado'):
-            postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'])
-    else:
-        noticia = buscar_noticia_nacional()
-        if noticia and not verificar_se_ja_foi_publicado(blog_id, access_token, noticia['link'], noticia['titulo']):
-            dados = formatar_noticia_com_gemini(noticia, agora)
-            if dados and dados.get('titulo_otimizado'):
-                postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'])
+    logging.info("Varrendo fontes de vagas em busca de novidades...")
+    for buscar_fonte in lista_fontes_vagas:
+        vagas_da_fonte = buscar_fonte()
+        
+        for vaga in vagas_da_fonte:
+            titulo_vaga_limpo = vaga['titulo'].strip()
+            
+            # Validação: Se o título da vaga já existir no histórico recente, pula
+            ja_existe = any(titulo_vaga_limpo in t or t in titulo_vaga_limpo for t in titulos_publicados)
+            
+            if not ja_existe:
+                vaga_selecionada = vaga
+                break # Encontrou uma vaga inédita nesta fonte
+                
+        if vaga_selecionada:
+            break # Interrompe a busca nas outras fontes, pois já temos o alvo do dia
+            
+    # 4. Preparação das Variáveis de Tempo (Fuso Horário de Brasília)
+    fuso_br = zoneinfo.ZoneInfo("America/Sao_Paulo")
+    agora = datetime.now(fuso_br).strftime("%d/%m/%Y às %H:%M")
+    
+    titulo_final = ""
+    conteudo_final = ""
+
+    # 5. Processamento e Tomada de Decisão do Conteúdo com Injeção de Data e Filtro de Extensão
+    if vaga_selecionada:
+        logging.info(f"Vaga inédita selecionada para processamento: {vaga_selecionada['titulo']}")
+        # Passando a data atual formatada para dentro da IA
+        dados_ia = processar_vaga_com_gemini(vaga_selecionada, agora)
+        
+        if dados_ia.get('e_motorista'):
+            titulo_final = f"{dados_ia['titulo_otimizado']}"
+            conteudo_final = dados_ia['conteudo_html']
+        else:
+            logging.warning("A vaga selecionada foi descartada pelo filtro de IA por não ser de motorista.")
+            vaga_selecionada = None 
+
+    if not vaga_selecionada:
+        logging.warning("⚠️ Nenhuma vaga de emprego inédita encontrada hoje. Ativando Plano B de Notícias!")
+        noticia_bruta = buscar_noticia_caminhoneiro()
+        
+        # Passando a data atual formatada para dentro da IA
+        dados_noticia = formatar_noticia_com_gemini(noticia_bruta, agora)
+        titulo_final = dados_noticia['titulo_otimizado']
+        conteudo_final = dados_noticia['conteudo_html']
+
+    # Adiciona o rodapé de automação discreto
+    conteudo_final += f"""
+    <br><hr>
+    <p><small><i>Post verificado e atualizado via inteligência artificial em {agora}.</i></small></p>
+    """
+
+    # 6. Publicação Final Garantida
+    try:
+        logging.info(f"Enviando nova postagem ao Blogger: '{titulo_final}'")
+        postar_no_blogger(blog_id, access_token, titulo_final, conteudo_final)
+        logging.info("Fluxo diário finalizado com sucesso absoluto!")
+    except Exception as erro_final:
+        logging.error(f"Falha crítica no envio final: {erro_final}")
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()
