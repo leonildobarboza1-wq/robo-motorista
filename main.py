@@ -8,7 +8,7 @@ from filtro_ia import processar_vaga_com_gemini, formatar_noticia_com_gemini
 
 logging.basicConfig(level=logging.INFO)
 
-# --- FUNÇÕES DE CONTROLE ---
+# --- FUNÇÕES ---
 
 def obter_token_oauth2():
     client_id = os.getenv('BLOGGER_CLIENT_ID')
@@ -36,19 +36,15 @@ def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato, titulo_
     except: return False
 
 def postar_no_blogger(blog_id, access_token, titulo, conteudo):
-    # Trava de segurança contra posts vazios
-    if len(conteudo) < 300 or "temporariamente indisponível" in conteudo:
-        logging.error(f"Postagem abortada: conteúdo inválido.")
+    if len(conteudo) < 300:
+        logging.error("Abortado: Conteúdo muito curto.")
         return
-    
     url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts/?isDraft=false"
     payload = {"kind": "blogger#post", "title": titulo, "content": conteudo}
     req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), 
                                  headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}, method='POST')
     with urllib.request.urlopen(req) as response:
         logging.info("Post publicado com sucesso!")
-
-# --- BUSCAS ---
 
 def buscar_vagas_bne():
     try:
@@ -72,24 +68,21 @@ def buscar_noticia_nacional():
 
 if __name__ == "__main__":
     blog_id = os.getenv('BLOG_ID')
-    try:
-        access_token = obter_token_oauth2()
-    except Exception as e:
-        logging.error(f"Erro ao obter token: {e}")
-        exit(1)
-        vaga = buscar_vagas_bne()
-    logging.info(f"Vaga encontrada: {vaga}") # ADICIONE ESTA LINHA
-    if vaga and not verificar_se_ja_foi_publicado(...):
+    access_token = obter_token_oauth2()
     agora = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y às %H:%M")
     
-    # Execução do fluxo
+    # 1. Tentar Vaga
     vaga = buscar_vagas_bne()
+    logging.info(f"Busca de Vaga: {vaga}")
     if vaga and not verificar_se_ja_foi_publicado(blog_id, access_token, vaga['link'], vaga['titulo']):
         dados = processar_vaga_com_gemini(vaga, agora)
         if dados and dados.get('titulo_otimizado'):
             postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'])
+    
+    # 2. Tentar Notícia
     else:
         noticia = buscar_noticia_nacional()
+        logging.info(f"Busca de Notícia: {noticia}")
         if noticia and not verificar_se_ja_foi_publicado(blog_id, access_token, noticia['link'], noticia['titulo']):
             dados = formatar_noticia_com_gemini(noticia, agora)
             if dados and dados.get('titulo_otimizado'):
