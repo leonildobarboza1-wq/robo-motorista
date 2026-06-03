@@ -21,11 +21,9 @@ def obter_token_oauth2():
         return json.loads(response.read().decode('utf-8'))['access_token']
 
 def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato, titulo_candidato):
-    # Filtro de Higiene: Ignora nossos testes
     palavras_proibidas = ["teste", "testando", "erro", "debug", "exemplo"]
     if any(p in titulo_candidato.lower() for p in palavras_proibidas):
         return True 
-        
     url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?maxResults=10"
     headers = {'Authorization': f'Bearer {access_token}'}
     try:
@@ -38,15 +36,17 @@ def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato, titulo_
     except: return False
 
 def postar_no_blogger(blog_id, access_token, titulo, conteudo):
-    # SEGURANÇA: Se o conteúdo for muito curto, o Blogger esconde. Forçamos uma extensão.
     if len(conteudo) < 200:
         conteudo += "<p>Esta é uma oportunidade selecionada para motoristas profissionais. Mantenha seus documentos em dia e boa sorte na busca pelo novo emprego!</p>"
     
     url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts/?isDraft=false"
     payload = {"kind": "blogger#post", "title": titulo, "content": conteudo}
-    # ... resto da chamada
+    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), 
+                                 headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}, method='POST')
+    with urllib.request.urlopen(req) as response:
+        logging.info("Post publicado com sucesso!")
 
-# --- FUNÇÕES DE BUSCA ---
+# --- BUSCAS ---
 
 def buscar_vagas_bne():
     try:
@@ -65,29 +65,29 @@ def buscar_noticia_nacional():
             link = item.split('<link>')[1].split('</link>')[0].strip()
             return {"titulo": titulo, "link": link, "fonte_original": "Estradão", "descricao": "Notícia nacional"}
     except: return None
-# ... dentro do if ...
-    dados = processar_vaga_com_gemini(vaga, agora)
-    
-    # CHECAGEM DE SEGURANÇA
-    if dados and dados.get('titulo_otimizado'):
-        postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'])
-    else:
-        logging.error("Falha ao gerar dados válidos pela IA. Postagem abortada.")
-        
+
+# --- FLUXO PRINCIPAL ---
+
 if __name__ == "__main__":
     blog_id = os.getenv('BLOG_ID')
     access_token = obter_token_oauth2()
     agora = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y às %H:%M")
     
-    # 1. Tentar Vagas
+    # Tentativa de Vaga
     vaga = buscar_vagas_bne()
     if vaga and not verificar_se_ja_foi_publicado(blog_id, access_token, vaga['link'], vaga['titulo']):
         dados = processar_vaga_com_gemini(vaga, agora)
-        postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'])
-    
-    # 2. Se não postou vaga, tentar Notícia
+        if dados and dados.get('titulo_otimizado'):
+            postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'])
+        else:
+            logging.error("Falha ao gerar dados da vaga.")
+            
+    # Tentativa de Notícia (se vaga não postada ou indisponível)
     else:
         noticia = buscar_noticia_nacional()
         if noticia and not verificar_se_ja_foi_publicado(blog_id, access_token, noticia['link'], noticia['titulo']):
             dados = formatar_noticia_com_gemini(noticia, agora)
-            postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'])
+            if dados and dados.get('titulo_otimizado'):
+                postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'])
+            else:
+                logging.error("Falha ao gerar dados da notícia.")
