@@ -108,36 +108,56 @@ def postar_no_blogger(blog_id, access_token, titulo, conteudo):
         res_data = json.loads(response.read().decode('utf-8'))
         logging.info(f"Post publicado com sucesso absoluto! ID: {res_data.get('id')}")
 
+def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato):
+    """Verifica se o link da vaga/notícia já consta no corpo das últimas 5 postagens"""
+    url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?maxResults=5&fields=items(content)"
+    headers = {'Authorization': f'Bearer {access_token}'}
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            for post in data.get('items', []):
+                if link_candidato in post.get('content', ''):
+                    return True # Já existe, não postar
+            return False
+    except:
+        return False
+
 if __name__ == "__main__":
-    logging.info("Iniciando fluxo do Robô Motorista Nacional...")
+    logging.info("Iniciando fluxo com checagem anti-repetição...")
     blog_id = os.getenv('BLOG_ID')
     access_token = obter_token_oauth2()
+    
+    # Busca o que já foi publicado
+    ultimos_titulos = obter_ultimos_titulos(blog_id, access_token)
     
     fuso_br = zoneinfo.ZoneInfo("America/Sao_Paulo")
     agora = datetime.now(fuso_br).strftime("%d/%m/%Y às %H:%M")
     
-    # Tenta vagas primeiro nas fontes fáceis
-    vaga_selecionada = buscar_vagas_bne()
-    if not vaga_selecionada:
-        vaga_selecionada = buscar_vagas_trabalha_brasil()
-        
-    titulo_final = ""
-    conteudo_final = ""
+    # Tentativa de busca: Vagas -> Notícias
+    candidato_final = None
+    tipo_conteudo = ""
     
-    if vaga_selecionada:
-        dados_ia = processar_vaga_com_gemini(vaga_selecionada, agora)
-        if dados_ia.get('e_motorista'):
-            titulo_final = dados_ia['titulo_otimizado']
-            conteudo_final = dados_ia['conteudo_html']
+    # 1. Tenta Vagas
+    vaga = buscar_vagas_bne() or buscar_vagas_trabalha_brasil()
+    if vaga and vaga['titulo'] not in ultimos_titulos:
+        candidato_final = processar_vaga_com_gemini(vaga, agora)
+        titulo_final = candidato_final['titulo_otimizado']
+        tipo_conteudo = "Vaga"
+    
+    # 2. Se a vaga foi repetida ou não achou, vai para Notícia
+    if not candidato_final:
+        noticia = buscar_noticia_nacional()
+        if noticia['titulo'] not in ultimos_titulos:
+            candidato_final = formatar_noticia_com_gemini(noticia, agora)
+            titulo_final = candidato_final['titulo_otimizado']
+            tipo_conteudo = "Notícia"
+        else:
+            logging.warning("Notícia também já foi publicada. Encerrando para evitar duplicação.")
+            exit() # Para o robô se tudo estiver repetido
             
-    if not titulo_final:
-        logging.info("Ativando Plano B Nacional de Notícias...")
-        noticia_bruta = buscar_noticia_nacional()
-        dados_noticia = formatar_noticia_com_gemini(noticia_bruta, agora)
-        titulo_final = dados_noticia['titulo_otimizado']
-        conteudo_final = dados_noticia['conteudo_html']
-        
-    conteudo_final += f"<br><hr><p><small><i>Post verificado e atualizado nacionalmente via inteligência artificial em {agora}.</i></small></p>"
+    # Publicação
+    conteudo_final = candidato_final['conteudo_html'] + f"<br><hr><p><small><i>Atualizado em {agora}.</i></small></p>"
     
-    logging.info(f"Enviando postagem: '{titulo_final}'")
+    logging.info(f"Publicando {tipo_conteudo} inédita: '{titulo_final}'")
     postar_no_blogger(blog_id, access_token, titulo_final, conteudo_final)
