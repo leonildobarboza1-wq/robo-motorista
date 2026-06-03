@@ -20,35 +20,32 @@ def obter_token_oauth2():
     with urllib.request.urlopen(req) as response:
         return json.loads(response.read().decode('utf-8'))['access_token']
 
-def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato):
-    """Verificação instantânea via API do Google (evita latência de indexação)"""
+def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato, titulo_candidato):
+    # Filtro de Higiene: Ignora nossos testes
+    palavras_proibidas = ["teste", "testando", "erro", "debug", "exemplo"]
+    if any(p in titulo_candidato.lower() for p in palavras_proibidas):
+        return True 
+        
     url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?maxResults=10"
     headers = {'Authorization': f'Bearer {access_token}'}
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=headers)) as response:
             data = json.loads(response.read().decode('utf-8'))
             for post in data.get('items', []):
-                # Procura o link no conteúdo do post, independentemente de etiquetas
                 if link_candidato in post.get('content', ''):
                     return True
             return False
     except: return False
 
-def postar_no_blogger(blog_id, access_token, titulo, conteudo, link_origem):
+def postar_no_blogger(blog_id, access_token, titulo, conteudo):
     url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts/?isDraft=false"
-    tag_unica = "link-" + link_origem.replace("https://", "").replace("http://", "").replace("/", "-")[:30]
-    payload = {
-        "kind": "blogger#post",
-        "title": titulo,
-        "content": conteudo,
-        "labels": [tag_unica]
-    }
+    payload = {"kind": "blogger#post", "title": titulo, "content": conteudo}
     req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), 
                                  headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}, method='POST')
     with urllib.request.urlopen(req) as response:
         logging.info("Post publicado com sucesso!")
 
-# --- BUSCAS E FLUXO (Mantendo as mesmas funções de busca anteriores) ---
+# --- FUNÇÕES DE BUSCA ---
 
 def buscar_vagas_bne():
     try:
@@ -73,13 +70,15 @@ if __name__ == "__main__":
     access_token = obter_token_oauth2()
     agora = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y às %H:%M")
     
-    # Execução
+    # 1. Tentar Vagas
     vaga = buscar_vagas_bne()
     if vaga and not verificar_se_ja_foi_publicado(blog_id, access_token, vaga['link'], vaga['titulo']):
         dados = processar_vaga_com_gemini(vaga, agora)
-        postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'], vaga['link'])
+        postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'])
+    
+    # 2. Se não postou vaga, tentar Notícia
     else:
         noticia = buscar_noticia_nacional()
         if noticia and not verificar_se_ja_foi_publicado(blog_id, access_token, noticia['link'], noticia['titulo']):
             dados = formatar_noticia_com_gemini(noticia, agora)
-            postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'], noticia['link'])
+            postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'])
