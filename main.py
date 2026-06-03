@@ -65,7 +65,15 @@ def buscar_noticia_nacional():
             link = item.split('<link>')[1].split('</link>')[0].strip()
             return {"titulo": titulo, "link": link, "fonte_original": "Estradão", "descricao": "Notícia nacional"}
     except: return None
-
+# ... dentro do if ...
+    dados = processar_vaga_com_gemini(vaga, agora)
+    
+    # CHECAGEM DE SEGURANÇA
+    if dados and dados.get('titulo_otimizado'):
+        postar_no_blogger(blog_id, access_token, dados['titulo_otimizado'], dados['conteudo_html'])
+    else:
+        logging.error("Falha ao gerar dados válidos pela IA. Postagem abortada.")
+        
 if __name__ == "__main__":
     blog_id = os.getenv('BLOG_ID')
     access_token = obter_token_oauth2()
