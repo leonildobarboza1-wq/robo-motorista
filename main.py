@@ -20,20 +20,16 @@ def obter_token_oauth2():
     with urllib.request.urlopen(req) as response:
         return json.loads(response.read().decode('utf-8'))['access_token']
 
-def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato, titulo_candidato):
-    # Filtro de Higiene: Ignora nossos testes
-    palavras_proibidas = ["teste", "testando", "erro", "debug", "exemplo"]
-    if any(p in titulo_candidato.lower() for p in palavras_proibidas):
-        return True 
-        
-    tag_buscada = "link-" + link_candidato.replace("https://", "").replace("http://", "").replace("/", "-")[:30]
-    url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?maxResults=5&fields=items(labels)"
+def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato):
+    """Verificação instantânea via API do Google (evita latência de indexação)"""
+    url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?maxResults=10"
     headers = {'Authorization': f'Bearer {access_token}'}
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=headers)) as response:
             data = json.loads(response.read().decode('utf-8'))
             for post in data.get('items', []):
-                if tag_buscada in post.get('labels', []):
+                # Procura o link no conteúdo do post, independentemente de etiquetas
+                if link_candidato in post.get('content', ''):
                     return True
             return False
     except: return False
