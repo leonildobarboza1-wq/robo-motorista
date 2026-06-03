@@ -38,12 +38,13 @@ def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato, titulo_
     except: return False
 
 def postar_no_blogger(blog_id, access_token, titulo, conteudo):
+    # SEGURANÇA: Se o conteúdo for muito curto, o Blogger esconde. Forçamos uma extensão.
+    if len(conteudo) < 200:
+        conteudo += "<p>Esta é uma oportunidade selecionada para motoristas profissionais. Mantenha seus documentos em dia e boa sorte na busca pelo novo emprego!</p>"
+    
     url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts/?isDraft=false"
     payload = {"kind": "blogger#post", "title": titulo, "content": conteudo}
-    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), 
-                                 headers={'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}, method='POST')
-    with urllib.request.urlopen(req) as response:
-        logging.info("Post publicado com sucesso!")
+    # ... resto da chamada
 
 # --- FUNÇÕES DE BUSCA ---
 
