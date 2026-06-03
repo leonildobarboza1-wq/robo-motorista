@@ -20,8 +20,16 @@ def obter_token_oauth2():
     with urllib.request.urlopen(req) as response:
         return json.loads(response.read().decode('utf-8'))['access_token']
 
-def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato):
-    """Verifica se o link já consta no corpo das últimas 5 postagens"""
+    def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato, titulo_candidato):
+    # 1. Ignora automaticamente títulos que contenham palavras de teste
+    palavras_proibidas = ["testeee", "testandooo", "errooo", "debugeee", "exemplooo"]
+    if any(p in titulo_candidato.lower() for p in palavras_proibidas):
+        return True # Trata como se já tivesse sido publicado para o robô pular
+        
+    url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?maxResults=5&fields=items(labels,title)"
+    headers = {'Authorization': f'Bearer {access_token}'}
+    # ... resto da função de checagem de etiquetas continua igual ...
+    
     url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?maxResults=5&fields=items(content)"
     headers = {'Authorization': f'Bearer {access_token}'}
     req = urllib.request.Request(url, headers=headers)
