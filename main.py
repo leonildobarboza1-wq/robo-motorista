@@ -77,7 +77,9 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error(f"Erro ao obter token: {e}")
         exit(1)
-        
+        vaga = buscar_vagas_bne()
+    logging.info(f"Vaga encontrada: {vaga}") # ADICIONE ESTA LINHA
+    if vaga and not verificar_se_ja_foi_publicado(...):
     agora = datetime.now(zoneinfo.ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y às %H:%M")
     
     # Execução do fluxo
