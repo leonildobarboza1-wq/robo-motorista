@@ -17,26 +17,15 @@ def chamar_api_gemini_com_json(prompt):
         return json.loads(resultado['candidates'][0]['content']['parts'][0]['text'].strip())
 
 def processar_vaga_com_gemini(vaga, data_postagem):
-    prompt = f"""
-    Escreva uma matéria detalhada sobre esta vaga: {vaga['titulo']}.
-    Siga estas regras:
-    - O texto deve ter pelo menos 300 palavras.
-    - Fale sobre a importância da função, segurança rodoviária e habilidades necessárias.
-    - Use HTML puro com parágrafos <p> e tópicos <ul>/<li>.
-    - NÃO use tags <img>.
-    Retorne ESTRITAMENTE um JSON:
-    {{"titulo_otimizado": "Título atrativo", "conteudo_html": "<p>...</p>"}}
-    """
-    # ... (o resto da função de chamada da API)
-
-def formatar_noticia_com_gemini(noticia, data_postagem):
-    prompt = f"""
-    Transforme esta notícia em um artigo detalhado de pelo menos 250 palavras: {noticia['titulo']}.
-    Retorne ESTRITAMENTE um JSON com:
-    - "titulo_otimizado": "Notícia: {noticia['titulo']}"
-    - "conteudo_html": "<p>📅 Publicado em: {data_postagem}</p><p>Desenvolvimento completo da matéria...</p>"
-    """
+    prompt = f"Escreva uma matéria detalhada de 300 palavras sobre: {vaga['titulo']}. Retorne JSON com 'titulo_otimizado' e 'conteudo_html' (use <p> e <ul>, sem <img>)."
     try:
         return chamar_api_gemini_com_json(prompt)
     except:
-        return {"titulo_otimizado": noticia['titulo'], "conteudo_html": f"<p>Leia mais sobre: {noticia['titulo']}.</p>"}
+        return {"titulo_otimizado": vaga['titulo'], "conteudo_html": f"<p>Vaga disponível em {vaga['fonte']}.</p>"}
+
+def formatar_noticia_com_gemini(noticia, data_postagem):
+    prompt = f"Escreva um artigo detalhado de 300 palavras sobre: {noticia['titulo']}. Retorne JSON com 'titulo_otimizado' e 'conteudo_html' (use <p> e <ul>, sem <img>)."
+    try:
+        return chamar_api_gemini_com_json(prompt)
+    except:
+        return {"titulo_otimizado": noticia['titulo'], "conteudo_html": f"<p>Leia mais em: {noticia['link']}</p>"}
