@@ -20,20 +20,21 @@ def obter_token_oauth2():
     with urllib.request.urlopen(req) as response:
         return json.loads(response.read().decode('utf-8'))['access_token']
 
-def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato, titulo_candidato):
-    palavras_proibidas = ["teste", "testando", "erro", "debug", "exemplo"]
-    if any(p in titulo_candidato.lower() for p in palavras_proibidas):
-        return True 
+def verificar_se_ja_foi_publicado(blog_id, access_token, link_candidato):
     url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?maxResults=10"
     headers = {'Authorization': f'Bearer {access_token}'}
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=headers)) as response:
             data = json.loads(response.read().decode('utf-8'))
             for post in data.get('items', []):
+                # Procura no título ou no link original que está no corpo
                 if link_candidato in post.get('content', ''):
+                    logging.info(f"Bloqueado: Link já publicado - {link_candidato}")
                     return True
             return False
-    except: return False
+    except Exception as e:
+        logging.error(f"Erro na verificação: {e}")
+        return False
 
 def postar_no_blogger(blog_id, access_token, titulo, conteudo):
     if len(conteudo) < 300:
