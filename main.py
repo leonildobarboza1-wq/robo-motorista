@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 import zoneinfo
 
-# Importações dos novos módulos modulares
+# Importações dos módulos modulares do projeto
 from scrapers_vagas import buscar_indeed, buscar_simplyhired, buscar_jooble, buscar_trabalhabrasil
 from scrapers_noticias import buscar_noticia_caminhoneiro
 from filtro_ia import processar_vaga_com_gemini, formatar_noticia_com_gemini
@@ -46,7 +46,6 @@ def obter_ultimos_titulos_blogger(blog_id, access_token):
         with urllib.request.urlopen(req) as response:
             res_data = json.loads(response.read().decode('utf-8'))
             items = res_data.get('items', [])
-            # Armazena apenas o começo do título original, ignorando as estampas de tempo
             return [item['title'].split(" - ")[0].strip() for item in items]
     except Exception as e:
         logging.warning(f"Não foi possível buscar posts antigos do Blogger: {e}")
@@ -54,13 +53,13 @@ def obter_ultimos_titulos_blogger(blog_id, access_token):
 
 def postar_no_blogger(blog_id, access_token, titulo, conteudo):
     """Envia a requisição POST para publicar no Blogger forçando status ativo (isDraft=false)"""
-    # O parâmetro isDraft=false força o post a ficar visível instantaneamente no painel público
     url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts/?isDraft=false"
     
     payload = {
         "kind": "blogger#post",
         "title": titulo,
-        "content": conteudo
+        "content": conteudo,
+        "labels": ["Vagas de Emprego", "O Estradeiro do Brasil", "Caminhoneiros"]
     }
     
     data = json.dumps(payload).encode('utf-8')
@@ -108,7 +107,11 @@ def main():
     
     logging.info("Varrendo fontes de vagas em busca de novidades...")
     for buscar_fonte in lista_fontes_vagas:
-        vagas_da_fonte = buscar_fonte()
+        try:
+            vagas_da_fonte = buscar_fonte()
+        except Exception as err:
+            logging.warning(f"Aviso ao buscar fonte de vagas: {err}")
+            continue
         
         for vaga in vagas_da_fonte:
             titulo_vaga_limpo = vaga['titulo'].strip()
@@ -118,10 +121,10 @@ def main():
             
             if not ja_existe:
                 vaga_selecionada = vaga
-                break # Encontrou uma vaga inédita nesta fonte
+                break 
                 
         if vaga_selecionada:
-            break # Interrompe a busca nas outras fontes, pois já temos o alvo do dia
+            break 
             
     # 4. Preparação das Variáveis de Tempo (Fuso Horário de Brasília)
     fuso_br = zoneinfo.ZoneInfo("America/Sao_Paulo")
@@ -130,10 +133,9 @@ def main():
     titulo_final = ""
     conteudo_final = ""
 
-    # 5. Processamento e Tomada de Decisão do Conteúdo com Injeção de Data e Filtro de Extensão
+    # 5. Processamento e Tomada de Decisão do Conteúdo com Injeção de Data
     if vaga_selecionada:
         logging.info(f"Vaga inédita selecionada para processamento: {vaga_selecionada['titulo']}")
-        # Passando a data atual formatada para dentro da IA
         dados_ia = processar_vaga_com_gemini(vaga_selecionada, agora)
         
         if dados_ia.get('e_motorista'):
@@ -147,7 +149,6 @@ def main():
         logging.warning("⚠️ Nenhuma vaga de emprego inédita encontrada hoje. Ativando Plano B de Notícias!")
         noticia_bruta = buscar_noticia_caminhoneiro()
         
-        # Passando a data atual formatada para dentro da IA
         dados_noticia = formatar_noticia_com_gemini(noticia_bruta, agora)
         titulo_final = dados_noticia['titulo_otimizado']
         conteudo_final = dados_noticia['conteudo_html']
@@ -155,7 +156,7 @@ def main():
     # Adiciona o rodapé de automação discreto
     conteudo_final += f"""
     <br><hr>
-    <p><small><i>Post verificado e atualizado via inteligência artificial em {agora}.</i></small></p>
+    <p><small><i>Post verificado e atualizado automaticamente via inteligência artificial em {agora}.</i></small></p>
     """
 
     # 6. Publicação Final Garantida
