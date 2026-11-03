@@ -4,6 +4,7 @@ import logging
 import urllib.request
 import urllib.parse
 import json
+import random
 from datetime import datetime
 import zoneinfo
 
@@ -38,7 +39,7 @@ def obter_access_token(client_id, client_secret, refresh_token):
 
 def obter_ultimos_titulos_blogger(blog_id, access_token):
     """Busca os títulos das últimas postagens do blog para evitar duplicidade"""
-    url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?maxResults=15&fetchBodies=false"
+    url = f"https://www.googleapis.com/blogger/v3/blogs/{blog_id}/posts?maxResults=20&fetchBodies=false"
     headers = {'Authorization': f'Bearer {access_token}'}
     req = urllib.request.Request(url, headers=headers, method='GET')
     
@@ -46,10 +47,29 @@ def obter_ultimos_titulos_blogger(blog_id, access_token):
         with urllib.request.urlopen(req) as response:
             res_data = json.loads(response.read().decode('utf-8'))
             items = res_data.get('items', [])
-            return [item['title'].split(" - ")[0].strip() for item in items]
+            # Limpa e guarda títulos em minúsculas para comparação exata
+            return [item['title'].lower().strip() for item in items]
     except Exception as e:
         logging.warning(f"Não foi possível buscar posts antigos do Blogger: {e}")
         return []
+
+def obter_imagem_hd_estrada():
+    """Retorna uma imagem dinâmica e variada do Unsplash focada no nicho de estradas e caminhões"""
+    ids_imagens = [
+        "1519003722824-194d4455a60c",
+        "1586528116311-ad8dd3c8310d",
+        "1544620347-c4fd4a3d5957",
+        "1506015391300-4802dc74de2e",
+        "1469854523086-cc02fe5d8800",
+        "1512917774080-9991f1c4c750",
+        "1511919884226-fd3cad34687c",
+        "1563720223185-11003d516935",
+        "1559297436-26f18a8cf444",
+        "1508873696983-2df5c92063c7"
+    ]
+    foto_id = random.choice(ids_imagens)
+    rand_seed = random.randint(100, 9999)
+    return f"https://images.unsplash.com/photo-{foto_id}?auto=format&fit=crop&w=1200&q=85&sig={rand_seed}"
 
 def postar_no_blogger(blog_id, access_token, titulo, conteudo):
     """Envia a requisição POST para publicar no Blogger forçando status ativo (isDraft=false)"""
@@ -114,10 +134,10 @@ def main():
             continue
         
         for vaga in vagas_da_fonte:
-            titulo_vaga_limpo = vaga['titulo'].strip()
+            titulo_vaga_limpo = vaga['titulo'].lower().strip()
             
-            # Validação: Se o título da vaga já existir no histórico recente, pula
-            ja_existe = any(titulo_vaga_limpo in t or t in titulo_vaga_limpo for t in titulos_publicados)
+            # Validação segura: Evita falsos positivos comparando strings exatas ou correspondências fortes
+            ja_existe = any(titulo_vaga_limpo == t or (len(titulo_vaga_limpo) > 10 and titulo_vaga_limpo in t) for t in titulos_publicados)
             
             if not ja_existe:
                 vaga_selecionada = vaga
@@ -133,12 +153,12 @@ def main():
     titulo_final = ""
     conteudo_final = ""
 
-    # 5. Processamento e Tomada de Decisão do Conteúdo com Injeção de Data
+    # 5. Processamento e Tomada de Decisão do Conteúdo
     if vaga_selecionada:
         logging.info(f"Vaga inédita selecionada para processamento: {vaga_selecionada['titulo']}")
         dados_ia = processar_vaga_com_gemini(vaga_selecionada, agora)
         
-        if dados_ia.get('e_motorista'):
+        if dados_ia and dados_ia.get('e_motorista'):
             titulo_final = f"{dados_ia['titulo_otimizado']}"
             conteudo_final = dados_ia['conteudo_html']
         else:
@@ -147,11 +167,26 @@ def main():
 
     if not vaga_selecionada:
         logging.warning("⚠️ Nenhuma vaga de emprego inédita encontrada hoje. Ativando Plano B de Notícias!")
-        noticia_bruta = buscar_noticia_caminhoneiro()
-        
-        dados_noticia = formatar_noticia_com_gemini(noticia_bruta, agora)
-        titulo_final = dados_noticia['titulo_otimizado']
-        conteudo_final = dados_noticia['conteudo_html']
+        try:
+            noticia_bruta = buscar_noticia_caminhoneiro()
+            if noticia_bruta:
+                dados_noticia = formatar_noticia_com_gemini(noticia_bruta, agora)
+                titulo_final = dados_noticia['titulo_otimizado']
+                conteudo_final = dados_noticia['conteudo_html']
+            else:
+                raise Exception("Nenhuma notícia válida retornada pelo scraper.")
+        except Exception as e_noticia:
+            logging.error(f"Erro ao processar o Plano B de Notícias: {e_noticia}")
+            sys.exit(1)
+
+    # 6. Injeção da Imagem Dinâmica e Variada no Topo do Conteúdo
+    imagem_url = obter_imagem_hd_estrada()
+    bloco_imagem_html = f'''
+    <div class="article-hero" style="margin-bottom: 20px;">
+        <img src="{imagem_url}" alt="{titulo_final}" style="width: 100%; max-height: 500px; object-fit: cover; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
+    </div>
+    '''
+    conteudo_final = bloco_imagem_html + conteudo_final
 
     # Adiciona o rodapé de automação discreto
     conteudo_final += f"""
@@ -159,7 +194,7 @@ def main():
     <p><small><i>Post verificado e atualizado automaticamente via inteligência artificial em {agora}.</i></small></p>
     """
 
-    # 6. Publicação Final Garantida
+    # 7. Publicação Final Garantida
     try:
         logging.info(f"Enviando nova postagem ao Blogger: '{titulo_final}'")
         postar_no_blogger(blog_id, access_token, titulo_final, conteudo_final)
