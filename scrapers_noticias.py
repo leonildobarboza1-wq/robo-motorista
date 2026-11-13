@@ -6,20 +6,20 @@ import re
 logging.basicConfig(level=logging.INFO)
 
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8'
 }
 
 def limpar_html_noticia(texto):
-    """Remove tags HTML e sujeiras do texto para entregar limpo ao Gemini"""
-    if not texto: return ""
-    # Remove tags HTML
+    """Remove tags HTML e sujeiras do texto para entregar limpo ao Gemini."""
+    if not texto:
+        return ""
     texto_limpo = re.sub(r'<[^>]+>', '', texto)
-    # Remove espaços duplos e quebras de linha excessivas
     return " ".join(texto_limpo.split()).strip()
 
 def buscar_noticia_caminhoneiro():
     """
-    Varre os 3 portais de notícias em ordem. 
+    Varre os 3 portais de notícias em ordem.
     Retorna a primeira notícia válida que encontrar.
     """
     fontes = [
@@ -27,43 +27,40 @@ def buscar_noticia_caminhoneiro():
         {"nome": "Revista Caminhoneiro", "url": "https://revistacaminhoneiro.com.br/feed/"},
         {"nome": "Estradas.com.br", "url": "https://estradas.com.br/feed/"}
     ]
-    
+
     for fonte in fontes:
         try:
-            logging.info(f"Tentando buscar notícia reserva no portal: {fonte['nome']}...")
+            logging.info(f"Tentando buscar notícia no portal: {fonte['nome']}...")
             req = urllib.request.Request(fonte['url'], headers=HEADERS)
-            
-            with urllib.request.urlopen(req, timeout=12) as response:
+
+            with urllib.request.urlopen(req, timeout=15) as response:
                 xml_data = response.read()
-                
+
             root = ET.fromstring(xml_data)
-            item = root.find('.//item') # Pega a notícia mais recente do topo (posição 0)
-            
-            if item is not None:
-                titulo = item.find('title').text if item.find('title') is not None else ''
-                link = item.find('link').text if item.find('link') is not None else ''
-                
-                # Alguns feeds usan 'description', outros usam o 'encoded' do content.
-                # Tentamos pegar o que tiver mais texto descritivo.
-                descricao = ""
+            itens = root.findall('.//item')
+
+            for item in itens[:3]:
+                titulo_node = item.find('title')
+                link_node = item.find('link')
                 desc_node = item.find('description')
-                if desc_node is not None and desc_node.text:
-                    descricao = desc_node.text
-                    
-                logging.info(f"Sucesso! Notícia capturada de {fonte['nome']}: {titulo[:40]}...")
-                
-                return {
-                    'titulo': titulo.strip(),
-                    'link': link.strip(),
-                    'descricao': limpar_html_noticia(descricao),
-                    'fonte_original': fonte['nome']
-                }
-                
+
+                titulo = titulo_node.text.strip() if (titulo_node is not None and titulo_node.text) else ''
+                link = link_node.text.strip() if (link_node is not None and link_node.text) else ''
+                descricao = desc_node.text if (desc_node is not None and desc_node.text) else ''
+
+                if titulo and link:
+                    logging.info(f"Sucesso! Notícia capturada de {fonte['nome']}: {titulo[:40]}...")
+                    return {
+                        'titulo': titulo,
+                        'link': link,
+                        'descricao': limpar_html_noticia(descricao),
+                        'fonte_original': fonte['nome']
+                    }
+
         except Exception as e:
-            logging.error(f"Falha ao ler o feed do {fonte['nome']}: {e}. Tentando próxima fonte de notícias...")
-            
-    # Fallback crítico se a internet inteira cair (Garante que o robô nunca quebre)
-    logging.warning("⚠️ Todas as fontes de notícias falharam. Usando fallback informativo estático.")
+            logging.error(f"Falha ao ler o feed do {fonte['nome']}: {e}. Tentando próxima fonte...")
+
+    logging.warning("Todas as fontes de notícias falharam. Usando fallback informativo estático.")
     return {
         'titulo': 'Cuidados essenciais com a manutenção do caminhão antes de pegar a estrada',
         'link': 'https://blogdocaminhoneiro.com',
